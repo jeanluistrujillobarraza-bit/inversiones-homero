@@ -36,7 +36,11 @@ public class AuthController {
 
     @PostConstruct
     public void seedInitialAdmin() {
-        if (userRepository.count() == 0) {
+        // Eliminar el usuario antiguo "admin" si existe
+        userRepository.findByUsername("admin").ifPresent(userRepository::delete);
+
+        // Crear "cristian" si no existe
+        if (!userRepository.existsByUsername("cristian")) {
             UserDto admin = new UserDto();
             admin.setUsername("cristian");
             admin.setPassword("barraza1998");
@@ -44,7 +48,10 @@ public class AuthController {
             admin.setRole("ROLE_ADMIN");
             admin.setActive(true);
             userService.registerUser(admin);
+        }
 
+        // Crear "empleado" si no existe
+        if (!userRepository.existsByUsername("empleado")) {
             UserDto employee = new UserDto();
             employee.setUsername("empleado");
             employee.setPassword("empleado123");
