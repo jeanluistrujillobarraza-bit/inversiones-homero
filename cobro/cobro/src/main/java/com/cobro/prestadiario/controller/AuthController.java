@@ -27,7 +27,7 @@ public class AuthController {
     private final JwtUtils jwtUtils;
 
     public AuthController(AuthenticationManager authenticationManager, UserService userService,
-                          UserRepository userRepository, JwtUtils jwtUtils) {
+            UserRepository userRepository, JwtUtils jwtUtils) {
         this.authenticationManager = authenticationManager;
         this.userService = userService;
         this.userRepository = userRepository;
@@ -38,13 +38,13 @@ public class AuthController {
     public void seedInitialAdmin() {
         if (userRepository.count() == 0) {
             UserDto admin = new UserDto();
-            admin.setUsername("admin");
-            admin.setPassword("admin123");
+            admin.setUsername("cristian");
+            admin.setPassword("barraza1998");
             admin.setFullName("Administrador del Sistema");
             admin.setRole("ROLE_ADMIN");
             admin.setActive(true);
             userService.registerUser(admin);
-            
+
             UserDto employee = new UserDto();
             employee.setUsername("empleado");
             employee.setPassword("empleado123");
