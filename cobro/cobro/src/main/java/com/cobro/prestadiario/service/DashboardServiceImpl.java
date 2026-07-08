@@ -57,28 +57,9 @@ public class DashboardServiceImpl implements DashboardService {
 
     @Override
     public DashboardDto getDashboardStats(String currentUserId, String role) {
-        boolean isEmployee = "ROLE_EMPLOYEE".equals(role);
-
-        List<Client> clients;
-        List<Loan> loans;
-        List<Payment> payments;
-
-        if (isEmployee) {
-            clients = clientRepository.findByAssignedEmployeeId(currentUserId);
-            List<String> clientIds = clients.stream().map(Client::getId).collect(Collectors.toList());
-
-            List<Loan> clientLoans = loanRepository.findByClientIdIn(clientIds);
-            List<Loan> createdLoans = loanRepository.findByCreatedBy(currentUserId);
-            Set<Loan> loanSet = new HashSet<>(clientLoans);
-            loanSet.addAll(createdLoans);
-            loans = new ArrayList<>(loanSet);
-
-            payments = paymentRepository.findByCollectedById(currentUserId);
-        } else {
-            clients = clientRepository.findAll();
-            loans = loanRepository.findAll();
-            payments = paymentRepository.findAll();
-        }
+        List<Client> clients = clientRepository.findAll();
+        List<Loan> loans = loanRepository.findAll();
+        List<Payment> payments = paymentRepository.findAll();
 
         recalculateActiveLoans(loans);
 

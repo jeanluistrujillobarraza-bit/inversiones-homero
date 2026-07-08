@@ -40,7 +40,7 @@ public class ClientController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_EMPLOYEE')")
     public ResponseEntity<Client> createClient(@Valid @RequestBody ClientDto clientDto, @AuthenticationPrincipal UserDetailsImpl userDetails) {
         return ResponseEntity.ok(clientService.createClient(clientDto, userDetails.getId()));
     }

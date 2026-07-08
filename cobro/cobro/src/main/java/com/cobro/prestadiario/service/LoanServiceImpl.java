@@ -206,21 +206,7 @@ public class LoanServiceImpl implements LoanService {
 
     @Override
     public List<Loan> getAllLoans(String currentUserId, String role) {
-        List<Loan> result;
-        if ("ROLE_EMPLOYEE".equals(role)) {
-            List<Client> assignedClients = clientRepository.findByAssignedEmployeeId(currentUserId);
-            List<String> clientIds = assignedClients.stream().map(Client::getId).collect(Collectors.toList());
-
-            List<Loan> clientLoans = loanRepository.findByClientIdIn(clientIds);
-            List<Loan> createdLoans = loanRepository.findByCreatedBy(currentUserId);
-
-            Set<Loan> allLoans = new HashSet<>(clientLoans);
-            allLoans.addAll(createdLoans);
-
-            result = new ArrayList<>(allLoans);
-        } else {
-            result = loanRepository.findAll();
-        }
+        List<Loan> result = loanRepository.findAll();
         recalculateActiveLoans(result);
         return result;
     }

@@ -84,20 +84,11 @@ public class ClientServiceImpl implements ClientService {
 
     @Override
     public List<Client> getAllClients(String currentUserId, String role) {
-        if ("ROLE_EMPLOYEE".equals(role)) {
-            return clientRepository.findByAssignedEmployeeId(currentUserId);
-        }
         return clientRepository.findAll();
     }
 
     @Override
     public List<Client> searchClients(String query, String currentUserId, String role) {
-        List<Client> results = clientRepository.findByFullNameContainingIgnoreCase(query);
-        if ("ROLE_EMPLOYEE".equals(role)) {
-            return results.stream()
-                    .filter(c -> currentUserId.equals(c.getAssignedEmployeeId()))
-                    .collect(Collectors.toList());
-        }
-        return results;
+        return clientRepository.findByFullNameContainingIgnoreCase(query);
     }
 }
