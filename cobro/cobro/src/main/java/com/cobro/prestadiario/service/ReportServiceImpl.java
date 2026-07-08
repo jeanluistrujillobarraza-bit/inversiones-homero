@@ -204,6 +204,32 @@ public class ReportServiceImpl implements ReportService {
                         .append(l.getEndDateEstimated()).append(";")
                         .append(creator).append("\n");
             }
+        } else if ("RENEWALS".equalsIgnoreCase(type)) {
+            List<Loan> loans = loanRepository.findAll();
+            csv.append("Fecha Renovación;Cliente;DNI Cliente;Saldo Anterior;Dinero Adicional;Nuevo Capital;Nueva Deuda;Administrador;Observaciones\n");
+            for (Loan l : loans) {
+                if (l.getRenewals() != null) {
+                    Client c = clientMap.get(l.getClientId());
+                    String clientName = (c != null) ? c.getFullName() : "N/A";
+                    String clientDni = (c != null) ? c.getDni() : "N/A";
+                    for (LoanRenewal r : l.getRenewals()) {
+                        LocalDate rDate = r.getRenewalDate().toLocalDate();
+                        boolean dateMatch = (start == null || !rDate.isBefore(start)) && (end == null || !rDate.isAfter(end));
+                        boolean employeeMatch = (employeeId == null || employeeId.isEmpty() || employeeId.equals(l.getCreatedBy()));
+                        if (dateMatch && employeeMatch) {
+                            csv.append(r.getRenewalDate().format(dateTimeFormatter)).append(";")
+                                    .append(clientName).append(";")
+                                    .append(clientDni).append(";")
+                                    .append(r.getPreviousOutstandingBalance()).append(";")
+                                    .append(r.getAdditionalAmount()).append(";")
+                                    .append(r.getNewCapital()).append(";")
+                                    .append(r.getNewTotalToPay()).append(";")
+                                    .append(r.getCreatedBy()).append(";")
+                                    .append(r.getNotes() != null ? r.getNotes().replace("\n", " ").replace(";", ",") : "").append("\n");
+                        }
+                    }
+                }
+            }
         }
 
         return csv.toString().getBytes(StandardCharsets.UTF_8);

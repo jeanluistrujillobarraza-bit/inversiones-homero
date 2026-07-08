@@ -736,7 +736,8 @@ async function selectProfileLoan(loan) {
 
 async function renderFinancialDetails(loan) {
   const container = document.getElementById('profile-financial-details');
-  const pct = ((loan.amountPaid / loan.totalToPay) * 100).toFixed(0);
+  const activePaid = loan.amountPaid - (loan.rolledOverPayments || 0.0);
+  const pct = ((Math.max(0, activePaid) / loan.totalToPay) * 100).toFixed(0);
 
   container.innerHTML = `
     <div class="flex justify-between items-center mb-6">
@@ -797,7 +798,15 @@ async function renderFinancialDetails(loan) {
     </div>
 
     ${loan.status !== 'PAGADO' ? `
-      <div class="pt-6 border-t border-slate-100 dark:border-slate-800 mt-6 flex justify-end">
+      <div class="pt-6 border-t border-slate-100 dark:border-slate-800 mt-6 flex justify-end gap-3">
+        ${currentUser.role === 'ROLE_ADMIN' ? `
+          <button onclick="openEditLoanModal('${loan.id}')" class="inline-flex items-center gap-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold py-2 px-4 rounded-xl text-xs">
+            <i data-lucide="edit" class="h-4 w-4"></i> Editar Préstamo
+          </button>
+          <button onclick="openRenewLoanModal('${loan.id}')" class="inline-flex items-center gap-2 bg-emerald-650 hover:bg-emerald-600 dark:bg-emerald-900/60 dark:hover:bg-emerald-800/80 text-white font-bold py-2 px-4 rounded-xl text-xs shadow-md">
+            <i data-lucide="plus-circle" class="h-4 w-4"></i> ➕ Aumentar Préstamo
+          </button>
+        ` : ''}
         <button onclick="navigateRegisterPayment('${loan.id}')" class="inline-flex items-center gap-2 bg-primary-600 hover:bg-primary-500 text-white font-bold py-2 px-4 rounded-xl text-xs shadow-lg">
           <i data-lucide="circle-dollar-sign" class="h-4 w-4"></i> Cobrar Cuota
         </button>
@@ -834,6 +843,31 @@ async function renderFinancialDetails(loan) {
   } catch (e) {
     console.error(e);
   }
+
+  // Render renewals history
+  const renewalsHistory = document.getElementById('profile-renewals-history');
+  if (loan.renewals && loan.renewals.length > 0) {
+    renewalsHistory.innerHTML = loan.renewals.map(r => `
+      <div class="p-3 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-100 dark:border-slate-850 hover:border-slate-200 transition text-[11px] space-y-1">
+        <div class="flex justify-between items-center font-bold">
+          <span class="text-slate-850 dark:text-white">Renovación Realizada</span>
+          <span class="text-slate-450 text-[10px]">${new Date(r.renewalDate).toLocaleString('es-CO')}</span>
+        </div>
+        <div class="grid grid-cols-2 gap-1.5 text-[10px] mt-1">
+          <div><span class="text-slate-450 font-medium">Saldo anterior:</span> <span class="font-semibold text-slate-700 dark:text-slate-300">${formatCurrency(r.previousOutstandingBalance)}</span></div>
+          <div><span class="text-slate-450 font-medium">Dinero adicional:</span> <span class="font-semibold text-emerald-600">+${formatCurrency(r.additionalAmount)}</span></div>
+          <div><span class="text-slate-450 font-medium">Nuevo capital:</span> <span class="font-semibold text-slate-700 dark:text-slate-300">${formatCurrency(r.newCapital)}</span></div>
+          <div><span class="text-slate-450 font-medium">Nueva deuda:</span> <span class="font-semibold text-primary-600">${formatCurrency(r.newTotalToPay)}</span></div>
+        </div>
+        <div class="text-[9px] text-slate-450 mt-1 italic border-t border-slate-100 dark:border-slate-800 pt-1">
+          Por: ${r.createdBy} ${r.notes ? `| Obs: ${r.notes}` : ''}
+        </div>
+      </div>
+    `).join('');
+  } else {
+    renewalsHistory.innerHTML = `<p class="text-center py-4 text-slate-400 text-xs">No hay renovaciones registradas para este préstamo.</p>`;
+  }
+  lucide.createIcons();
 }
 
 function navigateRegisterPayment(loanId) {
@@ -976,6 +1010,149 @@ async function handleLoanSubmit(e) {
     document.getElementById('loan-form').reset();
     document.getElementById('loan-start-date').value = getLocalDateString();
     liveCalculateLoan();
+  } catch (error) {
+    errorDiv.innerText = error.message;
+    errorDiv.classList.remove('hidden');
+  }
+}
+
+async function openEditLoanModal(loanId) {
+  const errorDiv = document.getElementById('modal-edit-loan-error');
+  errorDiv.classList.add('hidden');
+  document.getElementById('modal-edit-loan-form').reset();
+
+  try {
+    const res = await fetch(`${API_BASE}/loans/${loanId}`, { headers: getHeaders() });
+    if (!res.ok) throw new Error('Error al cargar préstamo');
+    const loan = await res.json();
+
+    const clientRes = await fetch(`${API_BASE}/clients/${loan.clientId}`, { headers: getHeaders() });
+    const client = await clientRes.json();
+
+    document.getElementById('modal-edit-loan-id-field').value = loan.id;
+    document.getElementById('modal-edit-loan-client-id').value = loan.clientId;
+    document.getElementById('edit-loan-client-name').value = `${client.fullName} - ${client.dni}`;
+    document.getElementById('edit-loan-amount').value = loan.amount;
+    document.getElementById('edit-loan-type').value = loan.loanType || 'DIARIO';
+    document.getElementById('edit-loan-installments').value = loan.installmentsCount;
+    document.getElementById('edit-loan-start-date').value = loan.startDate;
+
+    const rate = loan.interestRate;
+    const rateSelect = document.getElementById('edit-loan-interest-rate');
+    const customInput = document.getElementById('edit-loan-interest-custom');
+    
+    if (rate === 10 || rate === 15 || rate === 20) {
+      rateSelect.value = rate.toString();
+      customInput.classList.add('hidden');
+      customInput.required = false;
+    } else {
+      rateSelect.value = 'CUSTOM';
+      customInput.classList.remove('hidden');
+      customInput.required = true;
+      customInput.value = rate;
+    }
+
+    liveCalculateEditLoan();
+    document.getElementById('modal-edit-loan').classList.remove('hidden');
+    lucide.createIcons();
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
+function closeEditLoanModal() {
+  document.getElementById('modal-edit-loan').classList.add('hidden');
+}
+
+function toggleEditCustomInterest() {
+  const select = document.getElementById('edit-loan-interest-rate');
+  const customInput = document.getElementById('edit-loan-interest-custom');
+  
+  if (select.value === 'CUSTOM') {
+    customInput.classList.remove('hidden');
+    customInput.required = true;
+  } else {
+    customInput.classList.add('hidden');
+    customInput.required = false;
+    customInput.value = '';
+  }
+}
+
+function liveCalculateEditLoan() {
+  const amt = parseFloat(document.getElementById('edit-loan-amount').value) || 0;
+  const selectRate = document.getElementById('edit-loan-interest-rate').value;
+  const customRate = parseFloat(document.getElementById('edit-loan-interest-custom').value) || 0;
+  const rate = selectRate === 'CUSTOM' ? customRate : parseFloat(selectRate);
+  const installments = parseInt(document.getElementById('edit-loan-installments').value) || 1;
+  const startDateStr = document.getElementById('edit-loan-start-date').value;
+  const type = document.getElementById('edit-loan-type').value;
+
+  const interestVal = amt * (rate / 100);
+  const total = amt + interestVal;
+  const installmentVal = total / installments;
+
+  document.getElementById('edit-live-calc-interest').innerText = formatCurrency(interestVal);
+  document.getElementById('edit-live-calc-total').innerText = formatCurrency(total);
+  document.getElementById('edit-live-calc-installment').innerText = formatCurrency(installmentVal);
+
+  if (startDateStr) {
+    const d = new Date(startDateStr + 'T12:00:00');
+    if (type === 'SEMANAL') {
+      d.setDate(d.getDate() + (installments * 7));
+    } else if (type === 'QUINCENAL') {
+      d.setDate(d.getDate() + (installments * 15));
+    } else if (type === 'MENSUAL') {
+      d.setMonth(d.getMonth() + installments);
+    } else {
+      d.setDate(d.getDate() + installments);
+    }
+    document.getElementById('edit-live-calc-end-date').innerText = d.toISOString().split('T')[0];
+  } else {
+    document.getElementById('edit-live-calc-end-date').innerText = 'N/A';
+  }
+}
+
+async function handleEditLoanSubmit(e) {
+  e.preventDefault();
+  const errorDiv = document.getElementById('modal-edit-loan-error');
+  errorDiv.classList.add('hidden');
+
+  const id = document.getElementById('modal-edit-loan-id-field').value;
+  const selectRate = document.getElementById('edit-loan-interest-rate').value;
+  const customRate = parseFloat(document.getElementById('edit-loan-interest-custom').value) || 0;
+  const rate = selectRate === 'CUSTOM' ? customRate : parseFloat(selectRate);
+
+  const payload = {
+    clientId: document.getElementById('modal-edit-loan-client-id').value,
+    amount: parseFloat(document.getElementById('edit-loan-amount').value),
+    loanType: document.getElementById('edit-loan-type').value,
+    interestRate: rate,
+    installmentsCount: parseInt(document.getElementById('edit-loan-installments').value),
+    startDate: document.getElementById('edit-loan-start-date').value
+  };
+
+  try {
+    const res = await fetch(`${API_BASE}/loans/${id}`, {
+      method: 'PUT',
+      headers: getHeaders(),
+      body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.message || 'Error al actualizar préstamo.');
+    }
+
+    closeEditLoanModal();
+    if (currentTab === 'client-profile') {
+      const clientId = payload.clientId;
+      viewClientProfile(clientId);
+    } else if (currentTab === 'payments') {
+      await loadPaymentsTabDetails();
+      selectPaymentLoanById(id);
+    } else {
+      alert('Préstamo actualizado con éxito.');
+    }
   } catch (error) {
     errorDiv.innerText = error.message;
     errorDiv.classList.remove('hidden');
@@ -1750,6 +1927,19 @@ async function loadReportsTabDetails() {
         </div>
       ` : ''}
     `;
+  } else if (activeReportType === 'RENEWALS') {
+    grid.innerHTML = `
+      ${dateFiltersHtml}
+      ${currentUser.role === 'ROLE_ADMIN' ? `
+        <div>
+          <label class="block text-[10px] font-semibold text-slate-500 mb-1">Cobrador</label>
+          <select id="report-employee" onchange="fetchReportData()" class="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-xs">
+            <option value="">Todos</option>
+            ${employeeOptions}
+          </select>
+        </div>
+      ` : ''}
+    `;
   } else { // LOANS
     grid.innerHTML = `
       ${dateFiltersHtml}
@@ -1812,6 +2002,8 @@ async function fetchReportData() {
   } else if (activeReportType === 'CLIENTS') {
     const activeVal = document.getElementById('report-client-active').value;
     url += `/clients?start=${start}&end=${end}&active=${activeVal}&employeeId=${employeeVal}`;
+  } else if (activeReportType === 'RENEWALS') {
+    url += `/loans`;
   } else { // LOANS
     const status = document.getElementById('report-loan-status').value;
     url += `/loans?start=${start}&end=${end}&status=${status}&employeeId=${employeeVal}`;
@@ -1939,6 +2131,69 @@ async function fetchReportData() {
           </table>
         </div>
       `;
+    } else if (activeReportType === 'RENEWALS') {
+      const startLocalDate = start ? new Date(start + 'T00:00:00') : null;
+      const endLocalDate = end ? new Date(end + 'T23:59:59') : null;
+      
+      const renewalsList = [];
+      data.forEach(l => {
+        if (l.renewals && l.renewals.length > 0) {
+          const client = paymentsClientsMap[l.clientId] || { fullName: 'Desconocido', dni: 'N/A' };
+          l.renewals.forEach(r => {
+            const rDate = new Date(r.renewalDate);
+            const dateMatch = (!startLocalDate || rDate >= startLocalDate) && (!endLocalDate || rDate <= endLocalDate);
+            const employeeMatch = (employeeVal === '' || employeeVal === l.createdBy);
+            if (dateMatch && employeeMatch) {
+              renewalsList.push({
+                loan: l,
+                client: client,
+                renewal: r
+              });
+            }
+          });
+        }
+      });
+
+      if (renewalsList.length === 0) {
+        table.innerHTML = `<p class="p-8 text-center text-slate-400">No se encontraron renovaciones en el periodo seleccionado.</p>`;
+        return;
+      }
+
+      table.innerHTML = `
+        <div class="overflow-x-auto">
+          <table class="w-full border-collapse text-left text-xs">
+            <thead>
+              <tr class="bg-slate-50 dark:bg-slate-800/40 font-bold text-slate-500 border-b border-slate-200">
+                <th class="py-3 px-6">Fecha / Hora</th>
+                <th class="py-3 px-6">Cliente</th>
+                <th class="py-3 px-6">Saldo Anterior</th>
+                <th class="py-3 px-6">Dinero Adicional</th>
+                <th class="py-3 px-6">Nuevo Capital</th>
+                <th class="py-3 px-6">Nueva Deuda</th>
+                <th class="py-3 px-6">Realizado Por</th>
+                <th class="py-3 px-6">Observaciones</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-200">
+              ${renewalsList.map(item => `
+                <tr>
+                  <td class="py-3 px-6">${new Date(item.renewal.renewalDate).toLocaleString('es-CO')}</td>
+                  <td class="py-3 px-6 font-bold">
+                    ${item.client.fullName}
+                    <div class="text-[9px] text-slate-450 mt-0.5">DNI: ${item.client.dni}</div>
+                  </td>
+                  <td class="py-3 px-6">${formatCurrency(item.renewal.previousOutstandingBalance)}</td>
+                  <td class="py-3 px-6 text-emerald-650 font-bold">+${formatCurrency(item.renewal.additionalAmount)}</td>
+                  <td class="py-3 px-6">${formatCurrency(item.renewal.newCapital)}</td>
+                  <td class="py-3 px-6 text-primary-650 font-bold">${formatCurrency(item.renewal.newTotalToPay)}</td>
+                  <td class="py-3 px-6">${item.renewal.createdBy}</td>
+                  <td class="py-3 px-6 italic text-slate-505 truncate max-w-[150px]" title="${item.renewal.notes || ''}">${item.renewal.notes || 'N/A'}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
     } else { // LOANS
       table.innerHTML = `
         <div class="overflow-x-auto">
@@ -1995,6 +2250,8 @@ async function exportReport() {
   } else if (activeReportType === 'CLIENTS') {
     const activeVal = document.getElementById('report-client-active').value;
     url += `&extraParam=${activeVal}`;
+  } else if (activeReportType === 'RENEWALS') {
+    url += `&extraParam=`;
   } else { // LOANS
     const status = document.getElementById('report-loan-status').value;
     url += `&extraParam=${status}`;
@@ -3159,5 +3416,182 @@ function closeQuickGuideModal() {
   const modal = document.getElementById('modal-quick-guide');
   if (modal) {
     modal.classList.add('hidden');
+  }
+}
+
+// ==========================================
+// RENEW / INCREASE LOAN FUNCTIONS
+// ==========================================
+let currentRenewingLoan = null;
+
+async function openRenewLoanModal(loanId) {
+  const errorDiv = document.getElementById('modal-renew-loan-error');
+  if (errorDiv) errorDiv.classList.add('hidden');
+  const form = document.getElementById('modal-renew-loan-form');
+  if (form) form.reset();
+
+  try {
+    const res = await fetch(`${API_BASE}/loans/${loanId}`, { headers: getHeaders() });
+    if (!res.ok) throw new Error('Error al cargar detalles del préstamo');
+    const loan = await res.json();
+    currentRenewingLoan = loan;
+
+    // Fill current loan info card
+    document.getElementById('renew-info-capital').innerText = formatCurrency(loan.amount);
+    document.getElementById('renew-info-amountPaid').innerText = formatCurrency(loan.amountPaid);
+    document.getElementById('renew-info-balanceOutstanding').innerText = formatCurrency(loan.balanceOutstanding);
+    document.getElementById('renew-info-interestRate').innerText = `${loan.interestRate}%`;
+    document.getElementById('renew-info-status').innerText = loan.status;
+    document.getElementById('renew-info-status').className = `font-bold uppercase ${loan.status === 'ATRASADO' ? 'text-red-500' : 'text-blue-500'}`;
+    document.getElementById('renew-info-installmentsRemaining').innerText = loan.installmentsRemaining;
+
+    // Set hidden inputs
+    document.getElementById('modal-renew-loan-id-field').value = loan.id;
+    document.getElementById('modal-renew-loan-client-id').value = loan.clientId;
+
+    // Set form fields defaults
+    document.getElementById('renew-loan-type').value = loan.loanType || 'DIARIO';
+    document.getElementById('renew-loan-installments').value = loan.installmentsCount || 30;
+    document.getElementById('renew-loan-start-date').value = getLocalDateString();
+    
+    const rate = loan.interestRate;
+    const rateSelect = document.getElementById('renew-loan-interest-rate');
+    const customInput = document.getElementById('renew-loan-interest-custom');
+    if (rate === 10 || rate === 15 || rate === 20) {
+      rateSelect.value = rate.toString();
+      customInput.classList.add('hidden');
+      customInput.required = false;
+    } else {
+      rateSelect.value = 'CUSTOM';
+      customInput.classList.remove('hidden');
+      customInput.required = true;
+      customInput.value = rate;
+    }
+
+    liveCalculateRenewLoan();
+    document.getElementById('modal-renew-loan').classList.remove('hidden');
+    lucide.createIcons();
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
+function closeRenewLoanModal() {
+  document.getElementById('modal-renew-loan').classList.add('hidden');
+}
+
+function toggleRenewCustomInterest() {
+  const select = document.getElementById('renew-loan-interest-rate');
+  const customInput = document.getElementById('renew-loan-interest-custom');
+  if (select.value === 'CUSTOM') {
+    customInput.classList.remove('hidden');
+    customInput.required = true;
+  } else {
+    customInput.classList.add('hidden');
+    customInput.required = false;
+    customInput.value = '';
+  }
+}
+
+function liveCalculateRenewLoan() {
+  if (!currentRenewingLoan) return;
+  const oldBalance = currentRenewingLoan.balanceOutstanding || 0;
+  const additional = parseFloat(document.getElementById('renew-loan-additional-amount').value) || 0;
+  const newCapital = oldBalance + additional;
+
+  const selectRate = document.getElementById('renew-loan-interest-rate').value;
+  const customRate = parseFloat(document.getElementById('renew-loan-interest-custom').value) || 0;
+  const rate = selectRate === 'CUSTOM' ? customRate : parseFloat(selectRate);
+  const installments = parseInt(document.getElementById('renew-loan-installments').value) || 1;
+  const startDateStr = document.getElementById('renew-loan-start-date').value;
+  const type = document.getElementById('renew-loan-type').value;
+
+  const interestVal = newCapital * (rate / 100);
+  const total = newCapital + interestVal;
+  const installmentVal = total / installments;
+
+  document.getElementById('renew-calc-old-balance').innerText = formatCurrency(oldBalance);
+  document.getElementById('renew-calc-additional').innerText = formatCurrency(additional);
+  document.getElementById('renew-calc-new-capital').innerText = formatCurrency(newCapital);
+  document.getElementById('renew-calc-rate').innerText = `${rate}%`;
+  document.getElementById('renew-calc-new-total').innerText = formatCurrency(total);
+  document.getElementById('renew-calc-new-installment').innerText = formatCurrency(installmentVal);
+
+  if (startDateStr) {
+    const d = new Date(startDateStr + 'T12:00:00');
+    if (type === 'SEMANAL') {
+      d.setDate(d.getDate() + (installments * 7));
+    } else if (type === 'QUINCENAL') {
+      d.setDate(d.getDate() + (installments * 15));
+    } else if (type === 'MENSUAL') {
+      d.setMonth(d.getMonth() + installments);
+    } else {
+      d.setDate(d.getDate() + installments);
+    }
+    document.getElementById('renew-calc-end-date').innerText = d.toISOString().split('T')[0];
+  } else {
+    document.getElementById('renew-calc-end-date').innerText = 'N/A';
+  }
+}
+
+async function handleRenewLoanSubmit(e) {
+  e.preventDefault();
+  const errorDiv = document.getElementById('modal-renew-loan-error');
+  if (errorDiv) errorDiv.classList.add('hidden');
+
+  const additional = parseFloat(document.getElementById('renew-loan-additional-amount').value);
+  if (isNaN(additional) || additional <= 0) {
+    if (errorDiv) {
+      errorDiv.innerText = "El nuevo dinero a prestar debe ser mayor a cero.";
+      errorDiv.classList.remove('hidden');
+    }
+    return;
+  }
+
+  if (!confirm('¿Está seguro de que desea confirmar esta renovación? Se sumará el saldo pendiente anterior a este nuevo capital y se generará una nueva deuda.')) {
+    return;
+  }
+
+  const id = document.getElementById('modal-renew-loan-id-field').value;
+  const selectRate = document.getElementById('renew-loan-interest-rate').value;
+  const customRate = parseFloat(document.getElementById('renew-loan-interest-custom').value) || 0;
+  const rate = selectRate === 'CUSTOM' ? customRate : parseFloat(selectRate);
+
+  const payload = {
+    clientId: document.getElementById('modal-renew-loan-client-id').value,
+    amount: additional,
+    loanType: document.getElementById('renew-loan-type').value,
+    interestRate: rate,
+    installmentsCount: parseInt(document.getElementById('renew-loan-installments').value),
+    startDate: document.getElementById('renew-loan-start-date').value,
+    notes: document.getElementById('renew-loan-notes').value
+  };
+
+  try {
+    const res = await fetch(`${API_BASE}/loans/${id}/renew`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.message || 'Error al renovar préstamo.');
+    }
+
+    closeRenewLoanModal();
+    alert('Préstamo renovado con éxito.');
+    if (currentTab === 'client-profile') {
+      viewClientProfile(payload.clientId);
+    } else {
+      switchTab('clients');
+    }
+  } catch (error) {
+    if (errorDiv) {
+      errorDiv.innerText = error.message;
+      errorDiv.classList.remove('hidden');
+    } else {
+      alert(error.message);
+    }
   }
 }

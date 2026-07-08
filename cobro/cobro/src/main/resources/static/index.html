@@ -702,7 +702,7 @@
             </div>
           </div>
 
-          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <!-- Payments received -->
             <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-3xl shadow-sm">
               <h4 class="font-bold text-slate-850 dark:text-white text-sm mb-4 flex items-center gap-2">
@@ -720,6 +720,16 @@
               </h4>
               <div id="profile-loans-history" class="overflow-y-auto max-h-[300px] pr-2 space-y-3">
                 <!-- Loans list -->
+              </div>
+            </div>
+
+            <!-- Renovations history -->
+            <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-3xl shadow-sm">
+              <h4 class="font-bold text-slate-850 dark:text-white text-sm mb-4 flex items-center gap-2">
+                <i data-lucide="refresh-cw" class="h-5 w-5 text-emerald-500"></i> Historial de Renovaciones
+              </h4>
+              <div id="profile-renewals-history" class="overflow-y-auto max-h-[300px] pr-2 space-y-3">
+                <!-- Renewals list -->
               </div>
             </div>
           </div>
@@ -901,7 +911,12 @@
                     </div>
                   </div>
                   <div class="text-left sm:text-right shrink-0">
-                    <span id="payment-loan-status-badge" class="inline-flex px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase">ACTIVO</span>
+                    <div class="flex items-center sm:justify-end gap-2">
+                      <span id="payment-loan-status-badge" class="inline-flex px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase">ACTIVO</span>
+                      <button id="payment-edit-loan-btn" onclick="openEditLoanModal(selectedPaymentLoan?.id)" class="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-500 hover:text-slate-800 dark:hover:text-white admin-only hidden" title="Editar Préstamo">
+                        <i data-lucide="edit-3" class="h-3.5 w-3.5"></i>
+                      </button>
+                    </div>
                     <p class="text-[9px] font-mono text-slate-400 mt-1">Ref: <span id="payment-loan-id-full"></span></p>
                   </div>
                 </div>
@@ -1172,6 +1187,7 @@
               <button onclick="setReportType('EXPENSES')" id="btn-report-expenses" class="flex-1 sm:flex-initial py-2 px-3 rounded-lg text-xs font-bold text-slate-500 hover:text-slate-800 dark:hover:text-white">Gastos</button>
               <button onclick="setReportType('CLOSINGS')" id="btn-report-closings" class="flex-1 sm:flex-initial py-2 px-3 rounded-lg text-xs font-bold text-slate-500 hover:text-slate-800 dark:hover:text-white">Cierres</button>
               <button onclick="setReportType('CLIENTS')" id="btn-report-clients" class="flex-1 sm:flex-initial py-2 px-3 rounded-lg text-xs font-bold text-slate-500 hover:text-slate-800 dark:hover:text-white">Clientes</button>
+              <button onclick="setReportType('RENEWALS')" id="btn-report-renewals" class="flex-1 sm:flex-initial py-2 px-3 rounded-lg text-xs font-bold text-slate-500 hover:text-slate-800 dark:hover:text-white">Renovaciones</button>
             </div>
             <button onclick="exportReport()" class="w-full sm:w-auto flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 px-5 rounded-xl text-xs shadow-lg">
               <i data-lucide="file-spreadsheet" class="h-4.5 w-4.5"></i> Exportar CSV
@@ -1392,6 +1408,227 @@
         <div class="pt-4 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-3">
           <button type="button" onclick="closeClientModal()" class="px-4 py-2 border border-slate-200 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold hover:bg-slate-50">Cancelar</button>
           <button type="submit" class="px-5 py-2 bg-primary-600 hover:bg-primary-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-primary-600/10">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 4.5 MODAL: EDIT LOAN -->
+  <div id="modal-edit-loan" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm hidden no-print">
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden max-h-[90vh] flex flex-col animate-fade-in">
+      <div class="p-6 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center">
+        <h3 class="font-bold text-slate-800 dark:text-white text-base">Editar Configuración del Préstamo</h3>
+        <button onclick="closeEditLoanModal()" class="text-slate-500 hover:text-slate-800 dark:hover:text-white">✕</button>
+      </div>
+      <form id="modal-edit-loan-form" onsubmit="handleEditLoanSubmit(event)" class="p-6 overflow-y-auto space-y-4 flex-1">
+        <div id="modal-edit-loan-error" class="hidden p-3 bg-red-50 text-red-700 rounded-xl text-xs"></div>
+        <input type="hidden" id="modal-edit-loan-id-field">
+        <input type="hidden" id="modal-edit-loan-client-id">
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Cliente</label>
+          <input type="text" id="edit-loan-client-name" disabled class="w-full bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-550 rounded-xl py-3 px-4 text-xs font-semibold">
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Monto Prestado</label>
+            <input type="number" id="edit-loan-amount" oninput="liveCalculateEditLoan()" required class="w-full bg-slate-50 dark:bg-slate-955 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-white rounded-xl py-3 px-4 focus:ring-1">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Tipo de Préstamo</label>
+            <select id="edit-loan-type" onchange="liveCalculateEditLoan()" required class="w-full bg-slate-50 dark:bg-slate-955 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-white rounded-xl py-3 px-4 focus:ring-1">
+              <option value="DIARIO">Diario (Cobradiario)</option>
+              <option value="SEMANAL">Semanal</option>
+              <option value="QUINCENAL">Quincenal</option>
+              <option value="MENSUAL">Mensual</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Tasa de Interés (%)</label>
+            <div class="flex gap-2">
+              <select id="edit-loan-interest-rate" onchange="toggleEditCustomInterest(); liveCalculateEditLoan();" class="flex-1 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-850 dark:text-white rounded-xl py-3 px-4 focus:ring-1">
+                <option value="10">10%</option>
+                <option value="15">15%</option>
+                <option value="20">20%</option>
+                <option value="CUSTOM">Otro %</option>
+              </select>
+              <input type="number" id="edit-loan-interest-custom" placeholder="Tasa %" oninput="liveCalculateEditLoan()" class="hidden flex-1 bg-slate-50 dark:bg-slate-955 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-white rounded-xl py-3 px-4">
+            </div>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Número de Cuotas</label>
+            <input type="number" id="edit-loan-installments" oninput="liveCalculateEditLoan()" required class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-white rounded-xl py-3 px-4 focus:ring-1">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Fecha de Inicio</label>
+          <input type="date" id="edit-loan-start-date" onchange="liveCalculateEditLoan()" required class="w-full bg-slate-50 dark:bg-slate-955 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-white rounded-xl py-3 px-4 focus:ring-1">
+        </div>
+
+        <!-- Live calc section -->
+        <div class="p-4 bg-slate-900 text-white rounded-2xl space-y-2 text-xs">
+          <h4 class="font-bold border-b border-slate-800 pb-2 mb-2">Simulación de Valores Editados</h4>
+          <div class="flex justify-between">
+            <span class="text-slate-400">Interés Estimado</span>
+            <span id="edit-live-calc-interest" class="font-bold text-slate-200">$0</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-slate-400">Total a Pagar</span>
+            <span id="edit-live-calc-total" class="font-bold text-emerald-400">$0</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-slate-400">Valor por Cuota</span>
+            <span id="edit-live-calc-installment" class="font-bold text-primary-400">$0</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-slate-400">Fecha Estimada Fin</span>
+            <span id="edit-live-calc-end-date" class="font-bold text-slate-200">N/A</span>
+          </div>
+        </div>
+
+        <div class="pt-4 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-3">
+          <button type="button" onclick="closeEditLoanModal()" class="px-4 py-2 border border-slate-200 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold hover:bg-slate-50">Cancelar</button>
+          <button type="submit" class="px-5 py-2 bg-primary-600 hover:bg-primary-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-primary-600/10">Guardar Cambios</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 4.6 MODAL: RENEW / INCREASE LOAN -->
+  <div id="modal-renew-loan" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm hidden no-print">
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col animate-fade-in">
+      <div class="p-6 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-950/20">
+        <h3 class="font-bold text-slate-800 dark:text-white text-base flex items-center gap-2">
+          <span>➕ Aumentar Préstamo (Renovación)</span>
+        </h3>
+        <button onclick="closeRenewLoanModal()" class="text-slate-500 hover:text-slate-800 dark:hover:text-white font-bold">✕</button>
+      </div>
+      <form id="modal-renew-loan-form" onsubmit="handleRenewLoanSubmit(event)" class="p-6 overflow-y-auto space-y-5 flex-1">
+        <div id="modal-renew-loan-error" class="hidden p-3 bg-red-50 text-red-700 rounded-xl text-xs"></div>
+        <input type="hidden" id="modal-renew-loan-id-field">
+        <input type="hidden" id="modal-renew-loan-client-id">
+
+        <!-- Info card of current loan -->
+        <div class="p-4 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3">
+          <h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-200 dark:border-slate-800 pb-2">Información del Préstamo Actual</h4>
+          <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
+            <div>
+              <span class="text-slate-400">Capital Inicial:</span>
+              <p id="renew-info-capital" class="font-bold text-slate-700 dark:text-slate-300"></p>
+            </div>
+            <div>
+              <span class="text-slate-400">Total Cobrado:</span>
+              <p id="renew-info-amountPaid" class="font-bold text-emerald-600"></p>
+            </div>
+            <div>
+              <span class="text-slate-400">Saldo Pendiente:</span>
+              <p id="renew-info-balanceOutstanding" class="font-bold text-amber-600"></p>
+            </div>
+            <div>
+              <span class="text-slate-400">Interés Aplicado:</span>
+              <p id="renew-info-interestRate" class="font-bold text-slate-700 dark:text-slate-300"></p>
+            </div>
+            <div>
+              <span class="text-slate-400">Estado:</span>
+              <p id="renew-info-status" class="font-bold uppercase"></p>
+            </div>
+            <div>
+              <span class="text-slate-400">Cuotas Restantes:</span>
+              <p id="renew-info-installmentsRemaining" class="font-bold text-slate-700 dark:text-slate-300"></p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Form fields -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Nuevo Dinero a Prestar (Adicional)</label>
+            <div class="relative">
+              <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-405 font-bold">$</div>
+              <input type="number" id="renew-loan-additional-amount" oninput="liveCalculateRenewLoan()" required placeholder="Ej: 300000" class="w-full bg-slate-50 dark:bg-slate-955 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-white rounded-xl py-2.5 pl-8 pr-3 text-xs focus:ring-1 font-bold">
+            </div>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Nuevo Tipo de Préstamo</label>
+            <select id="renew-loan-type" onchange="liveCalculateRenewLoan()" required class="w-full bg-slate-50 dark:bg-slate-955 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-white rounded-xl py-2.5 px-3 text-xs focus:ring-1">
+              <option value="DIARIO">Diario (Cobradiario)</option>
+              <option value="SEMANAL">Semanal</option>
+              <option value="QUINCENAL">Quincenal</option>
+              <option value="MENSUAL">Mensual</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Nueva Tasa de Interés (%)</label>
+            <div class="flex gap-2">
+              <select id="renew-loan-interest-rate" onchange="toggleRenewCustomInterest(); liveCalculateRenewLoan();" class="flex-1 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-850 dark:text-white rounded-xl py-2.5 px-3 text-xs focus:ring-1">
+                <option value="10">10%</option>
+                <option value="15">15%</option>
+                <option value="20">20%</option>
+                <option value="CUSTOM">Otro %</option>
+              </select>
+              <input type="number" id="renew-loan-interest-custom" placeholder="Tasa %" oninput="liveCalculateRenewLoan()" class="hidden flex-1 bg-slate-50 dark:bg-slate-955 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-white rounded-xl py-2.5 px-3 text-xs">
+            </div>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Número de Cuotas</label>
+            <input type="number" id="renew-loan-installments" oninput="liveCalculateRenewLoan()" required placeholder="Ej: 30" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-white rounded-xl py-2.5 px-3 text-xs focus:ring-1">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Fecha de Inicio de Renovación</label>
+          <input type="date" id="renew-loan-start-date" onchange="liveCalculateRenewLoan()" required class="w-full bg-slate-50 dark:bg-slate-955 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-white rounded-xl py-2.5 px-3 text-xs focus:ring-1">
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Observaciones / Motivo de Renovación</label>
+          <textarea id="renew-loan-notes" placeholder="Escriba los comentarios sobre esta renovación..." class="w-full bg-slate-50 dark:bg-slate-955 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-white rounded-xl py-2 px-3 text-xs h-16 focus:ring-1"></textarea>
+        </div>
+
+        <!-- Simulation summary panel -->
+        <div class="p-4 bg-slate-900 text-white rounded-2xl space-y-2 text-xs">
+          <h4 class="font-extrabold text-emerald-400 border-b border-slate-800 pb-2 mb-2 uppercase tracking-wide">Simulación de Nueva Amortización</h4>
+          <div class="flex justify-between">
+            <span class="text-slate-400">Saldo Pendiente Anterior:</span>
+            <span id="renew-calc-old-balance" class="font-bold text-slate-200">$0</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-slate-400">Nuevo Dinero Prestado:</span>
+            <span id="renew-calc-additional" class="font-bold text-slate-200">$0</span>
+          </div>
+          <div class="flex justify-between border-t border-dashed border-slate-800 pt-2 font-semibold">
+            <span class="text-slate-400">Nuevo Capital Base:</span>
+            <span id="renew-calc-new-capital" class="font-extrabold text-slate-200">$0</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-slate-400">Tasa de Interés:</span>
+            <span id="renew-calc-rate" class="font-bold text-slate-200">0%</span>
+          </div>
+          <div class="flex justify-between border-t border-dashed border-slate-800 pt-2 font-bold text-emerald-400">
+            <span>Nuevo Total a Pagar:</span>
+            <span id="renew-calc-new-total" class="font-extrabold text-sm">$0</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-slate-400">Valor por Cuota:</span>
+            <span id="renew-calc-new-installment" class="font-bold text-primary-400">$0</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-slate-400">Fecha Estimada de Finalización:</span>
+            <span id="renew-calc-end-date" class="font-bold text-slate-200">N/A</span>
+          </div>
+        </div>
+
+        <div class="pt-4 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-3">
+          <button type="button" onclick="closeRenewLoanModal()" class="px-4 py-2 border border-slate-200 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold hover:bg-slate-50">Cancelar</button>
+          <button type="submit" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-emerald-600/10">Confirmar Renovación</button>
         </div>
       </form>
     </div>

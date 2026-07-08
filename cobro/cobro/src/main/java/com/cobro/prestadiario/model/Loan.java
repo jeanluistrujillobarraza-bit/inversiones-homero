@@ -32,12 +32,18 @@ public class Loan {
     private Integer installmentsLate = 0;
     private String createdBy;
     private LocalDateTime createdAt = LocalDateTime.now();
+    private Double rolledOverPayments = 0.0;
+    private List<LoanRenewal> renewals = new java.util.ArrayList<>();
 
     public Loan() {}
 
     public void recalculateState(List<Payment> payments) {
         double totalPaid = payments.stream().mapToDouble(Payment::getAmount).sum();
-        double balance = this.getTotalToPay() - totalPaid;
+        double activePaid = totalPaid - (this.rolledOverPayments != null ? this.rolledOverPayments : 0.0);
+        if (activePaid < 0.0) {
+            activePaid = 0.0;
+        }
+        double balance = this.getTotalToPay() - activePaid;
 
         if (balance < 0.01) {
             balance = 0.0;
@@ -46,7 +52,7 @@ public class Loan {
         this.setAmountPaid(totalPaid);
         this.setBalanceOutstanding(balance);
 
-        int installmentsPaidVal = (int) Math.round(totalPaid / this.getInstallmentValue());
+        int installmentsPaidVal = (int) Math.round(activePaid / this.getInstallmentValue());
         if (installmentsPaidVal > this.getInstallmentsCount() || balance == 0.0) {
             installmentsPaidVal = this.getInstallmentsCount();
         }
@@ -138,4 +144,10 @@ public class Loan {
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+
+    public Double getRolledOverPayments() { return rolledOverPayments; }
+    public void setRolledOverPayments(Double rolledOverPayments) { this.rolledOverPayments = rolledOverPayments; }
+
+    public List<LoanRenewal> getRenewals() { return renewals; }
+    public void setRenewals(List<LoanRenewal> renewals) { this.renewals = renewals; }
 }

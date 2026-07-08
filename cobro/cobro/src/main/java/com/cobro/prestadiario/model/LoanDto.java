@@ -58,4 +58,8 @@ public class LoanDto {
 
     public String getCreatedBy() { return createdBy; }
     public void setCreatedBy(String createdBy) { this.createdBy = createdBy; }
+
+    private String notes;
+    public String getNotes() { return notes; }
+    public void setNotes(String notes) { this.notes = notes; }
 }

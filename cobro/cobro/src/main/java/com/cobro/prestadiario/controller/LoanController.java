@@ -44,6 +44,21 @@ public class LoanController {
         return ResponseEntity.ok(loanService.createLoan(loanDto, userDetails.getId()));
     }
 
+    @PutMapping("/{id}")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
+    public ResponseEntity<Loan> updateLoan(@PathVariable String id, @Valid @RequestBody LoanDto loanDto) {
+        return ResponseEntity.ok(loanService.updateLoan(id, loanDto));
+    }
+
+    @PostMapping("/{id}/renew")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
+    public ResponseEntity<Loan> renewLoan(
+            @PathVariable String id,
+            @Valid @RequestBody LoanDto renewalDto,
+            @AuthenticationPrincipal UserDetailsImpl userDetails) {
+        return ResponseEntity.ok(loanService.renewLoan(id, renewalDto, userDetails.getId()));
+    }
+
     @PatchMapping("/{id}/status")
     @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     public ResponseEntity<Loan> updateLoanStatus(@PathVariable String id, @RequestParam String status) {
