@@ -179,31 +179,6 @@ public class ReportServiceImpl implements ReportService {
                         .append(c.isActive() ? "Activo" : "Inactivo").append(";")
                         .append(assignedTo).append("\n");
             }
-        } else { // LOANS
-            List<Loan> loans = getLoansReport(start, end, extraParam, employeeId);
-            csv.append("ID Préstamo;Cliente;DNI Cliente;Tipo Préstamo;Monto Prestado;Tasa Interés (%);Interés;Total a Pagar;Valor Cuota;Total Pagado;Saldo Pendiente;Estado;Fecha Inicio;Fecha Fin Estimada;Creado Por\n");
-            for (Loan l : loans) {
-                Client c = clientMap.get(l.getClientId());
-                String clientName = (c != null) ? c.getFullName() : "N/A";
-                String clientDni = (c != null) ? c.getDni() : "N/A";
-                String creator = userMap.getOrDefault(l.getCreatedBy(), "N/A");
-
-                csv.append(l.getId()).append(";")
-                        .append(clientName).append(";")
-                        .append(clientDni).append(";")
-                        .append(l.getLoanType()).append(";")
-                        .append(l.getAmount()).append(";")
-                        .append(l.getInterestRate()).append(";")
-                        .append(l.getInterestValue()).append(";")
-                        .append(l.getTotalToPay()).append(";")
-                        .append(l.getInstallmentValue()).append(";")
-                        .append(l.getAmountPaid()).append(";")
-                        .append(l.getBalanceOutstanding()).append(";")
-                        .append(l.getStatus()).append(";")
-                        .append(l.getStartDate()).append(";")
-                        .append(l.getEndDateEstimated()).append(";")
-                        .append(creator).append("\n");
-            }
         } else if ("RENEWALS".equalsIgnoreCase(type)) {
             List<Loan> loans = loanRepository.findAll();
             csv.append("Fecha Renovación;Cliente;DNI Cliente;Saldo Anterior;Dinero Adicional;Nuevo Capital;Nueva Deuda;Administrador;Observaciones\n");
@@ -229,6 +204,31 @@ public class ReportServiceImpl implements ReportService {
                         }
                     }
                 }
+            }
+        } else { // LOANS
+            List<Loan> loans = getLoansReport(start, end, extraParam, employeeId);
+            csv.append("ID Préstamo;Cliente;DNI Cliente;Tipo Préstamo;Monto Prestado;Tasa Interés (%);Interés;Total a Pagar;Valor Cuota;Total Pagado;Saldo Pendiente;Estado;Fecha Inicio;Fecha Fin Estimada;Creado Por\n");
+            for (Loan l : loans) {
+                Client c = clientMap.get(l.getClientId());
+                String clientName = (c != null) ? c.getFullName() : "N/A";
+                String clientDni = (c != null) ? c.getDni() : "N/A";
+                String creator = userMap.getOrDefault(l.getCreatedBy(), "N/A");
+
+                csv.append(l.getId()).append(";")
+                        .append(clientName).append(";")
+                        .append(clientDni).append(";")
+                        .append(l.getLoanType()).append(";")
+                        .append(l.getAmount()).append(";")
+                        .append(l.getInterestRate()).append(";")
+                        .append(l.getInterestValue()).append(";")
+                        .append(l.getTotalToPay()).append(";")
+                        .append(l.getInstallmentValue()).append(";")
+                        .append(l.getAmountPaid()).append(";")
+                        .append(l.getBalanceOutstanding()).append(";")
+                        .append(l.getStatus()).append(";")
+                        .append(l.getStartDate()).append(";")
+                        .append(l.getEndDateEstimated()).append(";")
+                        .append(creator).append("\n");
             }
         }
 
