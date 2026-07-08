@@ -803,7 +803,7 @@ async function renderFinancialDetails(loan) {
           <button onclick="openEditLoanModal('${loan.id}')" class="inline-flex items-center gap-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold py-2 px-4 rounded-xl text-xs">
             <i data-lucide="edit" class="h-4 w-4"></i> Editar Préstamo
           </button>
-          <button onclick="openRenewLoanModal('${loan.id}')" class="inline-flex items-center gap-2 bg-emerald-650 hover:bg-emerald-600 dark:bg-emerald-900/60 dark:hover:bg-emerald-800/80 text-white font-bold py-2 px-4 rounded-xl text-xs shadow-md">
+          <button onclick="openRenewLoanModal('${loan.id}')" class="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 dark:bg-emerald-900/60 dark:hover:bg-emerald-800/80 text-white font-bold py-2 px-4 rounded-xl text-xs shadow-md">
             <i data-lucide="plus-circle" class="h-4 w-4"></i> ➕ Aumentar Préstamo
           </button>
         ` : ''}
