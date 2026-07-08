@@ -58,6 +58,10 @@ public class Loan {
             long elapsed;
             if ("SEMANAL".equalsIgnoreCase(this.getLoanType())) {
                 elapsed = ChronoUnit.WEEKS.between(this.getStartDate(), today);
+            } else if ("QUINCENAL".equalsIgnoreCase(this.getLoanType())) {
+                elapsed = ChronoUnit.DAYS.between(this.getStartDate(), today) / 15;
+            } else if ("MENSUAL".equalsIgnoreCase(this.getLoanType())) {
+                elapsed = ChronoUnit.MONTHS.between(this.getStartDate(), today);
             } else {
                 elapsed = ChronoUnit.DAYS.between(this.getStartDate(), today);
             }

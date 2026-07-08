@@ -919,6 +919,10 @@ function liveCalculateLoan() {
     const d = new Date(startDateStr + 'T12:00:00');
     if (type === 'SEMANAL') {
       d.setDate(d.getDate() + (installments * 7));
+    } else if (type === 'QUINCENAL') {
+      d.setDate(d.getDate() + (installments * 15));
+    } else if (type === 'MENSUAL') {
+      d.setMonth(d.getMonth() + installments);
     } else {
       d.setDate(d.getDate() + installments);
     }
@@ -980,90 +984,363 @@ async function handleLoanSubmit(e) {
 
 // ----------------------------------------------------
 // TAB: PAYMENTS LOGIC
+// -----------------------------------// ----------------------------------------------------
+// TAB: PAYMENTS LOGIC
 // ----------------------------------------------------
+let selectedPaymentFrequency = 'DIARIO';
+let paymentsClientsMap = {};
+let paymentsTodayList = [];
+let paymentsTodayIds = new Set();
+let paymentsAllLoans = [];
+let paymentSearchQuery = '';
+
 async function loadPaymentsTabDetails() {
-  document.getElementById('payment-real-form').classList.add('hidden');
+  if (document.getElementById('payment-real-form-wrapper')) {
+    document.getElementById('payment-real-form-wrapper').classList.add('hidden');
+  }
   document.getElementById('payment-form-placeholder').classList.remove('hidden');
   document.getElementById('payment-receipt-view').classList.add('hidden');
   document.getElementById('payment-form-area').classList.remove('hidden');
   selectedPaymentLoan = null;
+  paymentSearchQuery = '';
+  document.getElementById('payment-search-input').value = '';
 
   const listContainer = document.getElementById('payment-active-loans-list');
   listContainer.innerHTML = `<div class="flex items-center justify-center p-6"><div class="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-600"></div></div>`;
 
   try {
-    const res = await fetch(`${API_BASE}/loans`, { headers: getHeaders() });
-    const list = await res.json();
-    activeLoansList = list.filter(l => l.status === 'ACTIVO' || l.status === 'ATRASADO');
+    const [loansRes, clientsRes, paymentsRes] = await Promise.all([
+      fetch(`${API_BASE}/loans`, { headers: getHeaders() }),
+      fetch(`${API_BASE}/clients`, { headers: getHeaders() }),
+      fetch(`${API_BASE}/payments`, { headers: getHeaders() })
+    ]);
 
-    if (activeLoansList.length === 0) {
-      listContainer.innerHTML = `<p class="text-xs text-slate-400 py-6 text-center">No hay cobros pendientes.</p>`;
-      return;
-    }
+    const loans = await loansRes.json();
+    const clients = await clientsRes.json();
+    const payments = await paymentsRes.json();
 
-    listContainer.innerHTML = activeLoansList.map(l => `
-      <div onclick="selectPaymentLoanById('${l.id}')" id="pay-loan-row-${l.id}" class="p-3 border rounded-2xl cursor-pointer bg-slate-50 dark:bg-slate-950 border-slate-100 hover:border-slate-200 transition text-[11px]">
-        <p class="font-bold text-slate-800 dark:text-white">ID: ${l.id.substring(0, 10)}...</p>
-        <div class="flex justify-between items-center mt-1">
-          <span class="text-[9px] text-slate-400 uppercase tracking-wider font-semibold">${l.loanType}</span>
-          <span class="font-bold text-slate-700 dark:text-slate-350">${formatCurrency(l.balanceOutstanding)}</span>
-        </div>
-      </div>
-    `).join('');
+    // Map clients
+    paymentsClientsMap = {};
+    clients.forEach(c => {
+      paymentsClientsMap[c.id] = c;
+    });
+
+    // Process today's payments
+    const todayStr = getLocalDateString();
+    paymentsTodayList = payments.filter(p => p.paymentDate && p.paymentDate.startsWith(todayStr));
+    paymentsTodayIds = new Set(paymentsTodayList.map(p => p.loanId));
+
+    // Active loans list
+    paymentsAllLoans = loans.filter(l => l.status === 'ACTIVO' || l.status === 'ATRASADO');
+
+    // Calculate next payment date & diff days for sorting and coloring
+    paymentsAllLoans.forEach(l => {
+      const nextDate = getNextPaymentDate(l);
+      l._nextPaymentDate = nextDate;
+      l._diffDays = getDaysRemaining(nextDate);
+      l._paidToday = paymentsTodayIds.has(l.id);
+    });
+
+    // Update tab counters
+    updatePaymentsTabCounters();
+
+    // Render list
+    renderPaymentsActiveLoans();
+
   } catch (e) {
-    listContainer.innerHTML = `<p class="text-xs text-red-500 py-6 text-center">Error al cargar préstamos.</p>`;
+    console.error(e);
+    listContainer.innerHTML = `<p class="text-xs text-red-500 py-6 text-center">Error al cargar datos de cobros.</p>`;
   }
 }
 
+function getNextPaymentDate(loan) {
+  if (loan.status === 'PAGADO') return null;
+  const nextInstallmentIndex = loan.installmentsPaid + 1;
+  const start = new Date(loan.startDate + 'T12:00:00');
+  
+  if (loan.loanType === 'SEMANAL') {
+    start.setDate(start.getDate() + (nextInstallmentIndex * 7));
+  } else if (loan.loanType === 'QUINCENAL') {
+    start.setDate(start.getDate() + (nextInstallmentIndex * 15));
+  } else if (loan.loanType === 'MENSUAL') {
+    start.setMonth(start.getMonth() + nextInstallmentIndex);
+  } else {
+    // DIARIO
+    start.setDate(start.getDate() + nextInstallmentIndex);
+  }
+  return start;
+}
+
+function getDaysRemaining(nextPaymentDate) {
+  if (!nextPaymentDate) return 0;
+  const today = new Date();
+  today.setHours(0,0,0,0);
+  const next = new Date(nextPaymentDate);
+  next.setHours(0,0,0,0);
+  
+  const diffTime = next - today;
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  return diffDays;
+}
+
+function updatePaymentsTabCounters() {
+  const counts = { DIARIO: 0, SEMANAL: 0, QUINCENAL: 0, MENSUAL: 0 };
+  paymentsAllLoans.forEach(l => {
+    const type = l.loanType || 'DIARIO';
+    if (counts[type] !== undefined) {
+      counts[type]++;
+    }
+  });
+
+  document.getElementById('tab-count-diarios').innerText = counts.DIARIO;
+  document.getElementById('tab-count-semanales').innerText = counts.SEMANAL;
+  document.getElementById('tab-count-quincenales').innerText = counts.QUINCENAL;
+  document.getElementById('tab-count-mensuales').innerText = counts.MENSUAL;
+
+  // Highlight active tab
+  const freqs = ['DIARIO', 'SEMANAL', 'QUINCENAL', 'MENSUAL'];
+  freqs.forEach(f => {
+    const btn = document.getElementById(`tab-freq-${f.toLowerCase()}`);
+    if (btn) {
+      if (f === selectedPaymentFrequency) {
+        btn.className = "flex items-center gap-3 p-4 bg-primary-50/50 dark:bg-primary-950/20 border-2 border-primary-500 rounded-2xl shadow-sm transition-all text-left w-full";
+      } else {
+        btn.className = "flex items-center gap-3 p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm transition-all text-left w-full";
+      }
+    }
+  });
+}
+
+function setPaymentsFrequency(freq) {
+  selectedPaymentFrequency = freq;
+  updatePaymentsTabCounters();
+  renderPaymentsActiveLoans();
+}
+
+function renderPaymentsActiveLoans() {
+  const listContainer = document.getElementById('payment-active-loans-list');
+  listContainer.innerHTML = '';
+
+  // Filter by frequency tab
+  let filtered = paymentsAllLoans.filter(l => (l.loanType || 'DIARIO') === selectedPaymentFrequency);
+
+  // Filter by search query if any
+  if (paymentSearchQuery.trim() !== '') {
+    const q = paymentSearchQuery.toLowerCase();
+    filtered = filtered.filter(l => {
+      const client = paymentsClientsMap[l.clientId] || {};
+      const clientName = (client.fullName || '').toLowerCase();
+      const clientDni = (client.dni || '').toLowerCase();
+      const clientPhone = (client.phone || '').toLowerCase();
+      const loanId = (l.id || '').toLowerCase();
+      return clientName.includes(q) || clientDni.includes(q) || clientPhone.includes(q) || loanId.includes(q);
+    });
+  }
+
+  if (filtered.length === 0) {
+    listContainer.innerHTML = `<p class="text-xs text-slate-400 py-6 text-center">No hay préstamos para esta categoría.</p>`;
+    return;
+  }
+
+  // Automatic Priority Sort:
+  // 1. Paid today at the very bottom (already collected)
+  // 2. Late/overdue (diffDays < 0 or installmentsLate > 0)
+  // 3. Due today (diffDays === 0)
+  // 4. Due tomorrow (diffDays === 1)
+  // 5. Rest of them
+  filtered.sort((a, b) => {
+    if (a._paidToday !== b._paidToday) {
+      return a._paidToday ? 1 : -1;
+    }
+    const priorityA = getSortPriority(a);
+    const priorityB = getSortPriority(b);
+    if (priorityA !== priorityB) {
+      return priorityA - priorityB;
+    }
+    // Secondary sort: alphabetical by client name
+    const nameA = (paymentsClientsMap[a.clientId]?.fullName || '').toLowerCase();
+    const nameB = (paymentsClientsMap[b.clientId]?.fullName || '').toLowerCase();
+    return nameA.localeCompare(nameB);
+  });
+
+  listContainer.innerHTML = filtered.map(l => {
+    const client = paymentsClientsMap[l.clientId] || { fullName: 'Cliente Desconocido' };
+    
+    // Card styles based on state
+    let borderStyle = 'border-slate-100 dark:border-slate-800';
+    let statusBg = 'bg-slate-100 text-slate-700';
+    let statusText = 'Pendiente';
+    
+    if (l._paidToday) {
+      borderStyle = 'border-emerald-300 dark:border-emerald-800/60 bg-emerald-50/20 dark:bg-emerald-950/10';
+      statusBg = 'bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-355 font-bold';
+      statusText = '💰 Pagado hoy';
+    } else if (l.installmentsLate > 0 || l._diffDays < 0) {
+      borderStyle = 'border-red-500 dark:border-red-800 bg-red-50/10 dark:bg-red-955/5';
+      statusBg = 'bg-red-650 text-white font-bold';
+      statusText = `⚠ Atrasado (${Math.abs(l._diffDays)}d)`;
+    } else if (l._diffDays === 0) {
+      borderStyle = 'border-red-400 dark:border-red-805 bg-red-50/5 dark:bg-red-950/5';
+      statusBg = 'bg-red-100 dark:bg-red-950 text-red-650 dark:text-red-450 font-bold';
+      statusText = '🔴 Cobrar hoy';
+    } else if (l._diffDays === 1) {
+      borderStyle = 'border-amber-400 dark:border-amber-805 bg-amber-50/5';
+      statusBg = 'bg-amber-100 dark:bg-amber-950 text-amber-650 dark:text-amber-450 font-bold';
+      statusText = '🟡 Cobro mañana';
+    } else {
+      borderStyle = 'border-green-300 dark:border-green-800/40 bg-green-50/5';
+      statusBg = 'bg-green-100 dark:bg-green-950 text-green-650 dark:text-green-450 font-bold';
+      statusText = '🟢 Al día';
+    }
+
+    const nextPaymentStr = l._nextPaymentDate ? l._nextPaymentDate.toISOString().split('T')[0] : 'N/A';
+    const isSelected = selectedPaymentLoan && selectedPaymentLoan.id === l.id;
+    const selectionHighlight = isSelected ? 'ring-2 ring-primary-500 ring-offset-2 dark:ring-offset-slate-900' : '';
+
+    return `
+      <div onclick="selectPaymentLoanById('${l.id}')" id="pay-loan-row-${l.id}" class="p-3 border rounded-2xl cursor-pointer bg-white dark:bg-slate-900 ${borderStyle} ${selectionHighlight} transition hover:shadow-md text-[11px] space-y-2">
+        <div class="flex items-center gap-2">
+          ${client.photoBase64 ? `<img src="${client.photoBase64}" class="h-6 w-6 rounded-full object-cover">` : `<div class="h-6 w-6 rounded-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center font-bold text-slate-500 text-[9px]">${client.fullName.charAt(0).toUpperCase()}</div>`}
+          <p class="font-bold text-slate-800 dark:text-white truncate flex-1">${client.fullName}</p>
+          <span class="inline-block px-1.5 py-0.5 rounded text-[8px] font-bold ${statusBg}">${statusText}</span>
+        </div>
+        <div class="flex justify-between items-center text-[10px]">
+          <div>
+            <p class="text-slate-400 text-[9px]">Cuota</p>
+            <p class="font-bold text-slate-700 dark:text-slate-300">${formatCurrency(l.installmentValue)}</p>
+          </div>
+          <div class="text-right">
+            <p class="text-slate-400 text-[9px]">Saldo restante</p>
+            <p class="font-bold text-slate-700 dark:text-slate-300">${formatCurrency(l.balanceOutstanding)}</p>
+          </div>
+        </div>
+        <div class="flex justify-between items-center text-[8px] text-slate-400 border-t border-slate-100 dark:border-slate-800/60 pt-1.5">
+          <span>Próx: ${nextPaymentStr}</span>
+          <span>ID: ${l.id.substring(0, 8)}...</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  lucide.createIcons();
+}
+
+function getSortPriority(loan) {
+  if (loan.installmentsLate > 0 || loan._diffDays < 0) return 1; // Late/Overdue
+  if (loan._diffDays === 0) return 2; // Due today
+  if (loan._diffDays === 1) return 3; // Due tomorrow
+  return 4; // Rest
+}
+
+function searchPaymentLoans(e) {
+  paymentSearchQuery = e.target.value;
+  renderPaymentsActiveLoans();
+}
+
 async function selectPaymentLoanById(loanId) {
-  const loan = activeLoansList.find(l => l.id === loanId);
+  const loan = paymentsAllLoans.find(l => l.id === loanId);
   if (loan) handleLoanSelection(loan);
 }
 
 async function handleLoanSelection(loan) {
   selectedPaymentLoan = loan;
 
-  // Highlight row in list
-  document.querySelectorAll('#payment-active-loans-list > div').forEach(div => {
-    div.className = "p-3 border rounded-2xl cursor-pointer bg-slate-50 dark:bg-slate-955 border-slate-100 hover:border-slate-200 transition text-[11px]";
-  });
-  const activeDiv = document.getElementById(`pay-loan-row-${loan.id}`);
-  if (activeDiv) {
-    activeDiv.className = "p-3 border rounded-2xl cursor-pointer bg-primary-50/50 border-primary-350 dark:bg-primary-950/10 dark:border-primary-900 transition text-[11px]";
-  }
+  // Render cards again to apply highlight outline
+  renderPaymentsActiveLoans();
 
-  // Show form
+  // Show detailed panel wrapper
   document.getElementById('payment-form-placeholder').classList.add('hidden');
-  document.getElementById('payment-real-form').classList.remove('hidden');
+  document.getElementById('payment-real-form-wrapper').classList.remove('hidden');
   document.getElementById('payment-receipt-view').classList.add('hidden');
   document.getElementById('payment-form-area').classList.remove('hidden');
+  
   document.getElementById('payment-amount').value = loan.installmentValue.toFixed(0);
   document.getElementById('payment-notes').value = '';
   document.getElementById('payment-error').classList.add('hidden');
 
-  // Load client details
-  const banner = document.getElementById('payment-client-banner');
-  banner.innerHTML = `<div class="animate-pulse h-8 bg-slate-200 rounded w-full"></div>`;
+  // Fill details
+  const client = paymentsClientsMap[loan.clientId] || { fullName: 'Cliente Desconocido', dni: '', phone: '', address: '' };
 
-  try {
-    const res = await fetch(`${API_BASE}/clients/${loan.clientId}`, { headers: getHeaders() });
-    const c = await res.json();
-    
-    banner.innerHTML = `
-      <div>
-        <p class="text-[9px] text-slate-400 uppercase font-semibold">Cliente</p>
-        <h4 class="font-extrabold text-xs text-slate-800 dark:text-white mt-1">${c.fullName}</h4>
-        <p class="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">C.C: ${c.dni} | Celular: ${c.phone}</p>
-      </div>
-      <div class="text-left sm:text-right">
-        <p class="text-[9px] text-slate-400 uppercase font-semibold">Resumen Préstamo</p>
-        <p class="text-[10px] font-bold text-slate-700 mt-1">Saldo restante: ${formatCurrency(loan.balanceOutstanding)}</p>
-        <p class="text-[10px] text-slate-500 mt-0.5">Cuota sugerida: <span class="font-extrabold text-primary-500">${formatCurrency(loan.installmentValue)}</span></p>
-      </div>
-    `;
-  } catch (error) {
-    banner.innerHTML = `<p class="text-red-500">Error al cargar detalles de cliente.</p>`;
+  // Photo
+  const photoContainer = document.getElementById('payment-client-photo-container');
+  if (client.photoBase64) {
+    photoContainer.innerHTML = `<img src="${client.photoBase64}" class="h-full w-full object-cover">`;
+  } else {
+    photoContainer.innerHTML = `<div class="h-full w-full rounded-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center font-bold text-slate-500 text-lg">${client.fullName.charAt(0).toUpperCase()}</div>`;
   }
+
+  document.getElementById('payment-client-name').innerText = client.fullName;
+  document.getElementById('payment-client-dni').innerText = client.dni;
+  document.getElementById('payment-client-phone').innerText = client.phone;
+  document.getElementById('payment-client-address').innerText = client.address || 'N/A';
+
+  // Status Badge
+  const statusBadge = document.getElementById('payment-loan-status-badge');
+  statusBadge.innerText = loan.status;
+  if (loan.status === 'ATRASADO') {
+    statusBadge.className = "inline-flex px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300";
+  } else {
+    statusBadge.className = "inline-flex px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase bg-primary-100 text-primary-700 dark:bg-primary-950 dark:text-primary-300";
+  }
+
+  document.getElementById('payment-loan-id-full').innerText = loan.id;
+
+  // Financial values
+  document.getElementById('payment-loan-amount').innerText = formatCurrency(loan.amount);
+  document.getElementById('payment-loan-total').innerText = formatCurrency(loan.totalToPay);
+  document.getElementById('payment-loan-balance').innerText = formatCurrency(loan.balanceOutstanding);
+  document.getElementById('payment-loan-installments-text').innerText = `${loan.installmentsPaid} de ${loan.installmentsCount} pagadas`;
+
+  // Details lines
+  document.getElementById('payment-loan-type-text').innerText = loan.loanType || 'DIARIO';
+  document.getElementById('payment-loan-start-date').innerText = loan.startDate;
+  document.getElementById('payment-loan-end-date').innerText = loan.endDateEstimated || 'N/A';
+
+  const nextPaymentStr = loan._nextPaymentDate ? loan._nextPaymentDate.toISOString().split('T')[0] : 'N/A';
+  document.getElementById('payment-loan-next-date').innerText = nextPaymentStr;
+  
+  const daysText = loan._diffDays < 0 ? `${Math.abs(loan._diffDays)} días de retraso` : `${loan._diffDays} días restantes`;
+  document.getElementById('payment-loan-days-remaining').innerText = daysText;
+  document.getElementById('payment-loan-late-count').innerText = loan.installmentsLate;
+
+  // Status Warning/Banner today
+  const banner = document.getElementById('payment-today-status-banner');
+  const printBtn = document.getElementById('quick-action-print-btn');
+
+  if (loan._paidToday) {
+    banner.className = "p-4 rounded-2xl flex items-center justify-between font-bold text-xs bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-250 text-emerald-700 dark:text-emerald-450";
+    banner.innerHTML = `<span>💰 Pago registrado hoy con éxito</span><span>${formatCurrency(loan.installmentValue)}</span>`;
+    
+    // Enable print button
+    printBtn.disabled = false;
+    printBtn.className = "flex items-center justify-center gap-1.5 p-3 bg-white hover:bg-slate-50 dark:bg-slate-900 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-2xl text-[10px] font-extrabold text-slate-650 dark:text-slate-300";
+  } else if (loan.installmentsLate > 0 || loan._diffDays < 0) {
+    banner.className = "p-4 rounded-2xl flex items-center justify-between font-bold text-xs bg-red-100 dark:bg-red-950 border border-red-250 text-red-700 dark:text-red-400";
+    banner.innerHTML = `<span>⚠️ Cobro vencido pendiente</span><span>${formatCurrency(loan.installmentValue)}</span>`;
+    
+    printBtn.disabled = true;
+    printBtn.className = "flex items-center justify-center gap-1.5 p-3 bg-white border border-slate-200 dark:border-slate-850 rounded-2xl text-[10px] font-extrabold text-slate-650 dark:text-slate-300 opacity-50 cursor-not-allowed";
+  } else if (loan._diffDays === 0) {
+    banner.className = "p-4 rounded-2xl flex items-center justify-between font-bold text-xs bg-red-50 dark:bg-red-950/30 border border-red-200 text-red-650 dark:text-red-450";
+    banner.innerHTML = `<span>🔴 Cobro pendiente hoy</span><span>${formatCurrency(loan.installmentValue)}</span>`;
+    
+    printBtn.disabled = true;
+    printBtn.className = "flex items-center justify-center gap-1.5 p-3 bg-white border border-slate-200 dark:border-slate-850 rounded-2xl text-[10px] font-extrabold text-slate-650 dark:text-slate-300 opacity-50 cursor-not-allowed";
+  } else if (loan._diffDays === 1) {
+    banner.className = "p-4 rounded-2xl flex items-center justify-between font-bold text-xs bg-amber-50 dark:bg-amber-950/10 border border-amber-200 text-amber-650 dark:text-amber-450";
+    banner.innerHTML = `<span>🟡 Cobro programado para mañana</span><span>${formatCurrency(loan.installmentValue)}</span>`;
+    
+    printBtn.disabled = true;
+    printBtn.className = "flex items-center justify-center gap-1.5 p-3 bg-white border border-slate-200 dark:border-slate-850 rounded-2xl text-[10px] font-extrabold text-slate-650 dark:text-slate-300 opacity-50 cursor-not-allowed";
+  } else {
+    banner.className = "p-4 rounded-2xl flex items-center justify-between font-bold text-xs bg-green-50 dark:bg-green-950/10 border border-green-200 text-green-650 dark:text-green-450";
+    banner.innerHTML = `<span>🟢 Al día (Próximo cobro en ${loan._diffDays} días)</span><span>Hoy no corresponde cobro</span>`;
+    
+    printBtn.disabled = true;
+    printBtn.className = "flex items-center justify-center gap-1.5 p-3 bg-white border border-slate-200 dark:border-slate-850 rounded-2xl text-[10px] font-extrabold text-slate-650 dark:text-slate-300 opacity-50 cursor-not-allowed";
+  }
+
+  lucide.createIcons();
 }
 
 function presetPayment(type) {
@@ -1107,6 +1384,74 @@ async function handlePaymentSubmit(e) {
   } catch (error) {
     errorDiv.innerText = error.message;
     errorDiv.classList.remove('hidden');
+  }
+}
+
+// Quick Actions
+function quickActionViewHistory() {
+  if (!selectedPaymentLoan) return;
+  // Redirect to clients tab, select client, switch tabs
+  localStorage.setItem('selectedClientId', selectedPaymentLoan.clientId);
+  switchTab('clients');
+  // Trigger loading details
+  setTimeout(() => {
+    viewClientProfile(selectedPaymentLoan.clientId);
+  }, 100);
+}
+
+function quickActionViewContract() {
+  if (!selectedPaymentLoan) return;
+  const client = paymentsClientsMap[selectedPaymentLoan.clientId] || {};
+
+  document.getElementById('contract-client-name').innerText = client.fullName || '';
+  document.getElementById('contract-client-dni').innerText = client.dni || '';
+  document.getElementById('contract-amount').innerText = formatCurrency(selectedPaymentLoan.amount);
+  document.getElementById('contract-interest-rate').innerText = selectedPaymentLoan.interestRate;
+  document.getElementById('contract-total-to-pay').innerText = formatCurrency(selectedPaymentLoan.totalToPay);
+  document.getElementById('contract-installments').innerText = selectedPaymentLoan.installmentsCount;
+  document.getElementById('contract-loan-type').innerText = selectedPaymentLoan.loanType || 'DIARIO';
+  document.getElementById('contract-installment-value').innerText = formatCurrency(selectedPaymentLoan.installmentValue);
+  document.getElementById('contract-start-date').innerText = selectedPaymentLoan.startDate;
+  document.getElementById('contract-end-date').innerText = selectedPaymentLoan.endDateEstimated || 'N/A';
+
+  document.getElementById('contract-client-sign-name').innerText = `Firma: ${client.fullName || ''}`;
+  document.getElementById('contract-client-sign-dni').innerText = `C.C. ${client.dni || ''}`;
+
+  document.getElementById('modal-view-contract').classList.remove('hidden');
+}
+
+function closeContractModal() {
+  document.getElementById('modal-view-contract').classList.add('hidden');
+}
+
+function quickActionSendWhatsApp() {
+  if (!selectedPaymentLoan) return;
+  const client = paymentsClientsMap[selectedPaymentLoan.clientId] || {};
+  if (!client.phone) {
+    alert('El cliente no tiene número de celular registrado.');
+    return;
+  }
+
+  const message = `Hola ${client.fullName},\nte saludamos de INVERSIONES HOMERO.\n\nTe recordamos que tu cuota de tipo *${selectedPaymentLoan.loanType}* es de *${formatCurrency(selectedPaymentLoan.installmentValue)}*.\nTu saldo pendiente es de *${formatCurrency(selectedPaymentLoan.balanceOutstanding)}*.\n\nQuedamos atentos. ¡Gracias!`;
+  const encoded = encodeURIComponent(message);
+  
+  // Format phone number, clean any non-digit
+  let cleanedPhone = client.phone.replace(/\D/g, '');
+  if (!cleanedPhone.startsWith('57') && cleanedPhone.length === 10) {
+    cleanedPhone = '57' + cleanedPhone; // Colombia country code default
+  }
+  
+  window.open(`https://api.whatsapp.com/send?phone=${cleanedPhone}&text=${encoded}`, '_blank');
+}
+
+async function quickActionPrintLastReceipt() {
+  if (!selectedPaymentLoan || !selectedPaymentLoan.id) return;
+  // Find if there is a payment recorded today for this loan
+  const paymentToday = paymentsTodayList.find(p => p.loanId === selectedPaymentLoan.id);
+  if (paymentToday) {
+    await viewPrintableReceipt(paymentToday.id);
+  } else {
+    alert('No se encontró ningún pago registrado hoy para imprimir.');
   }
 }
 

@@ -69,6 +69,10 @@ public class LoanServiceImpl implements LoanService {
         LocalDate endDate;
         if ("SEMANAL".equalsIgnoreCase(loanDto.getLoanType())) {
             endDate = loanDto.getStartDate().plusWeeks(loanDto.getInstallmentsCount());
+        } else if ("QUINCENAL".equalsIgnoreCase(loanDto.getLoanType())) {
+            endDate = loanDto.getStartDate().plusDays(loanDto.getInstallmentsCount() * 15L);
+        } else if ("MENSUAL".equalsIgnoreCase(loanDto.getLoanType())) {
+            endDate = loanDto.getStartDate().plusMonths(loanDto.getInstallmentsCount());
         } else {
             endDate = loanDto.getStartDate().plusDays(loanDto.getInstallmentsCount());
         }
