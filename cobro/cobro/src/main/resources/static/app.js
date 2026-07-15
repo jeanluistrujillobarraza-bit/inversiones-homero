@@ -14,6 +14,17 @@ function getLocalDateString() {
   return `${year}-${month}-${day}`;
 }
 
+// Intercept all fetch calls to catch 401 Unauthorized responses (e.g., expired tokens)
+const originalFetch = window.fetch;
+window.fetch = async function(...args) {
+  const response = await originalFetch(...args);
+  const url = typeof args[0] === 'string' ? args[0] : (args[0] instanceof Request ? args[0].url : '');
+  if (response.status === 401 && !url.includes('/auth/login')) {
+    handleLogout();
+  }
+  return response;
+};
+
 // On Load init
 document.addEventListener('DOMContentLoaded', () => {
   initApp();
