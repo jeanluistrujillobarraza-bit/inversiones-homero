@@ -3,6 +3,7 @@ package com.cobro.prestadiario.service;
 import com.cobro.prestadiario.model.*;
 import com.cobro.prestadiario.repository.*;
 import com.cobro.prestadiario.exception.ResourceNotFoundException;
+import com.cobro.prestadiario.exception.BadRequestException;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
@@ -46,6 +47,13 @@ public class LoanServiceImpl implements LoanService {
     public Loan createLoan(LoanDto loanDto, String employeeId) {
         clientRepository.findById(loanDto.getClientId())
                 .orElseThrow(() -> new ResourceNotFoundException("Client not found with id: " + loanDto.getClientId()));
+
+        List<Loan> existingLoans = loanRepository.findByClientId(loanDto.getClientId());
+        boolean hasActiveLoan = existingLoans.stream()
+                .anyMatch(l -> "ACTIVO".equalsIgnoreCase(l.getStatus()) || "ATRASADO".equalsIgnoreCase(l.getStatus()));
+        if (hasActiveLoan) {
+            throw new BadRequestException("El cliente ya tiene un préstamo activo.");
+        }
 
         Loan loan = new Loan();
         loan.setClientId(loanDto.getClientId());

@@ -998,6 +998,12 @@ async function handleLoanSubmit(e) {
     return;
   }
 
+  const submitBtn = e.target.querySelector('button[type="submit"]');
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.innerText = 'Registrando...';
+  }
+
   const selectRate = document.getElementById('loan-interest-rate').value;
   const customRate = parseFloat(document.getElementById('loan-interest-custom').value) || 0;
   const rate = selectRate === 'CUSTOM' ? customRate : parseFloat(selectRate);
@@ -1031,6 +1037,11 @@ async function handleLoanSubmit(e) {
   } catch (error) {
     errorDiv.innerText = error.message;
     errorDiv.classList.remove('hidden');
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerText = 'Registrar Préstamo';
+    }
   }
 }
 
@@ -1071,6 +1082,14 @@ async function openEditLoanModal(loanId) {
     }
 
     liveCalculateEditLoan();
+    const deleteBtn = document.getElementById('edit-loan-delete-btn');
+    if (deleteBtn) {
+      if (currentUser && currentUser.role === 'ROLE_ADMIN') {
+        deleteBtn.classList.remove('hidden');
+      } else {
+        deleteBtn.classList.add('hidden');
+      }
+    }
     document.getElementById('modal-edit-loan').classList.remove('hidden');
     lucide.createIcons();
   } catch (e) {
@@ -1080,6 +1099,41 @@ async function openEditLoanModal(loanId) {
 
 function closeEditLoanModal() {
   document.getElementById('modal-edit-loan').classList.add('hidden');
+}
+
+async function deleteLoan(id) {
+  if (confirm('¿Está seguro de que desea eliminar este préstamo? Esta acción es irreversible.')) {
+    try {
+      const res = await fetch(`${API_BASE}/loans/${id}`, {
+        method: 'DELETE',
+        headers: getHeaders()
+      });
+      if (res.ok) {
+        alert('Préstamo eliminado con éxito.');
+        closeEditLoanModal();
+        if (currentTab === 'payments') {
+          loadPaymentsTabDetails();
+        } else if (currentTab === 'client-profile') {
+          const clientId = document.getElementById('modal-edit-loan-client-id').value;
+          viewClientProfile(clientId);
+        } else {
+          switchTab('dashboard');
+        }
+      } else {
+        alert('Error al eliminar el préstamo.');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Error al intentar eliminar el préstamo.');
+    }
+  }
+}
+
+async function handleDeleteLoanClick() {
+  const id = document.getElementById('modal-edit-loan-id-field').value;
+  if (id) {
+    await deleteLoan(id);
+  }
 }
 
 function toggleEditCustomInterest() {
@@ -3616,6 +3670,12 @@ async function handleRenewLoanSubmit(e) {
     return;
   }
 
+  const submitBtn = e.target.querySelector('button[type="submit"]');
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.innerText = 'Renovando...';
+  }
+
   const id = document.getElementById('modal-renew-loan-id-field').value;
   const selectRate = document.getElementById('renew-loan-interest-rate').value;
   const customRate = parseFloat(document.getElementById('renew-loan-interest-custom').value) || 0;
@@ -3656,6 +3716,11 @@ async function handleRenewLoanSubmit(e) {
       errorDiv.classList.remove('hidden');
     } else {
       alert(error.message);
+    }
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerText = 'Confirmar Renovación';
     }
   }
 }
