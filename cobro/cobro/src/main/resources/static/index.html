@@ -1800,9 +1800,12 @@
           <textarea id="modal-edit-payment-notes" class="w-full bg-slate-50 dark:bg-slate-955 border border-slate-200 dark:border-slate-800 rounded-xl py-2 px-3 text-xs h-20" placeholder="Comentarios sobre el ajuste..."></textarea>
         </div>
 
-        <div class="pt-4 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-3">
-          <button type="button" onclick="closeEditPaymentModal()" class="px-4 py-2 border border-slate-200 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold hover:bg-slate-50">Cancelar</button>
-          <button type="submit" class="px-5 py-2 bg-primary-600 hover:bg-primary-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-primary-600/10">Actualizar Pago</button>
+        <div class="pt-4 border-t border-slate-200 dark:border-slate-800 flex justify-between items-center">
+          <button type="button" onclick="handleDeletePaymentClick()" class="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-red-600/10">Eliminar Pago</button>
+          <div class="flex gap-3">
+            <button type="button" onclick="closeEditPaymentModal()" class="px-4 py-2 border border-slate-200 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold hover:bg-slate-50">Cancelar</button>
+            <button type="submit" class="px-5 py-2 bg-primary-600 hover:bg-primary-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-primary-600/10">Actualizar Pago</button>
+          </div>
         </div>
       </form>
     </div>

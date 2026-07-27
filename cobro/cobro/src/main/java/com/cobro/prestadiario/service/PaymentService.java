@@ -12,4 +12,5 @@ public interface PaymentService {
     Payment getPaymentById(String id);
     Payment updatePayment(String paymentId, PaymentDto paymentDto, String employeeId);
     List<Payment> getAllPayments();
+    void deletePayment(String paymentId, String employeeId);
 }

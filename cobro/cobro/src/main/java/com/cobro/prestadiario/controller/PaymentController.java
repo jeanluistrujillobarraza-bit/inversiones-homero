@@ -52,4 +52,11 @@ public class PaymentController {
     public ResponseEntity<List<Payment>> getAllPayments() {
         return ResponseEntity.ok(paymentService.getAllPayments());
     }
+
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
+    public ResponseEntity<Void> deletePayment(@PathVariable String id, @AuthenticationPrincipal UserDetailsImpl userDetails) {
+        paymentService.deletePayment(id, userDetails.getId());
+        return ResponseEntity.noContent().build();
+    }
 }

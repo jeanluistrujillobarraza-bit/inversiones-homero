@@ -842,11 +842,18 @@ async function renderFinancialDetails(loan) {
           <p class="font-bold text-slate-850 dark:text-white">${formatCurrency(p.amount)}</p>
           <p class="text-[9px] text-slate-450 mt-0.5">${new Date(p.paymentDate).toLocaleString('es-CO')}</p>
         </div>
-        <div class="text-right">
-          <span class="inline-flex px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 dark:bg-indigo-950/20 text-[9px] font-bold">${p.paymentMethod}</span>
-          <button onclick="viewPrintableReceipt('${p.id}')" class="flex items-center gap-1 text-[9px] text-primary-500 hover:underline mt-1 font-semibold">
-            <i data-lucide="receipt" class="h-3 w-3"></i> Recibo
-          </button>
+        <div class="text-right flex flex-col items-end">
+          <span class="inline-flex px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 dark:bg-indigo-950/20 text-[9px] font-bold mb-1">${p.paymentMethod}</span>
+          <div class="flex gap-2">
+            <button onclick="viewPrintableReceipt('${p.id}')" class="flex items-center gap-1 text-[9px] text-primary-500 hover:underline font-semibold">
+              <i data-lucide="receipt" class="h-3 w-3"></i> Recibo
+            </button>
+            ${currentUser && currentUser.role === 'ROLE_ADMIN' ? `
+            <button onclick="deletePayment('${p.id}')" class="flex items-center gap-1 text-[9px] text-red-500 hover:underline font-semibold" title="Eliminar pago definitivamente">
+              <i data-lucide="trash-2" class="h-3 w-3"></i> Eliminar
+            </button>
+            ` : ''}
+          </div>
         </div>
       </div>
     `).join('');
@@ -1218,8 +1225,13 @@ async function loadPaymentsTabDetails() {
     paymentsTodayList = payments.filter(p => p.paymentDate && p.paymentDate.startsWith(todayStr));
     paymentsTodayIds = new Set(paymentsTodayList.map(p => p.loanId));
 
-    // Active loans list
-    paymentsAllLoans = loans.filter(l => l.status === 'ACTIVO' || l.status === 'ATRASADO');
+    // Active loans list (filtered to prevent duplicate IDs)
+    const seenIds = new Set();
+    paymentsAllLoans = loans.filter(l => {
+      if (seenIds.has(l.id)) return false;
+      seenIds.add(l.id);
+      return l.status === 'ACTIVO' || l.status === 'ATRASADO';
+    });
 
     // Calculate next payment date & diff days for sorting and coloring
     paymentsAllLoans.forEach(l => {
@@ -2799,6 +2811,47 @@ async function handleEditPaymentSubmit(e) {
     errorDiv.innerText = error.message;
     errorDiv.classList.remove('hidden');
   }
+}
+
+async function deletePayment(paymentId) {
+  if (!confirm("¿Está seguro de que desea eliminar este pago? Esta acción no se puede deshacer y recalculará el saldo del préstamo.")) {
+    return;
+  }
+
+  try {
+    const res = await fetch(`${API_BASE}/payments/${paymentId}`, {
+      method: 'DELETE',
+      headers: getHeaders()
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.message || 'Error al eliminar el pago.');
+    }
+
+    alert('Pago eliminado con éxito.');
+
+    // Refresh whichever tab we are currently on
+    if (currentTab === 'client-profile') {
+      const clientId = localStorage.getItem('selectedClientId');
+      if (clientId) viewClientProfile(clientId);
+    } else if (currentTab === 'payments') {
+      await loadPaymentsTabDetails();
+    } else if (currentTab === 'dashboard') {
+      loadDashboardStats();
+    } else if (currentTab === 'alerts') {
+      loadAlertsTabDetails();
+    }
+  } catch (error) {
+    alert(error.message);
+  }
+}
+
+async function handleDeletePaymentClick() {
+  const paymentId = document.getElementById('modal-edit-payment-id').value;
+  if (!paymentId) return;
+  closeEditPaymentModal();
+  await deletePayment(paymentId);
 }
 
 // ----------------------------------------------------

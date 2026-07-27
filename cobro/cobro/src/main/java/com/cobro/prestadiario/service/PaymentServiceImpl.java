@@ -126,4 +126,24 @@ public class PaymentServiceImpl implements PaymentService {
     public List<Payment> getAllPayments() {
         return paymentRepository.findAll();
     }
+
+    @Override
+    public void deletePayment(String paymentId, String employeeId) {
+        Payment payment = paymentRepository.findById(paymentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Payment not found with id: " + paymentId));
+
+        Loan loan = loanRepository.findById(payment.getLoanId())
+                .orElseThrow(() -> new ResourceNotFoundException("Loan not found with id: " + payment.getLoanId()));
+
+        paymentRepository.delete(payment);
+
+        recalculateLoan(loan);
+
+        String username = userRepository.findById(employeeId).map(User::getUsername).orElse("Desconocido");
+        auditLogRepository.save(new AuditLog(
+            username,
+            "ELIMINACION_PAGO",
+            "Se eliminó el pago ID " + paymentId + " del préstamo ID " + loan.getId() + " por valor de " + payment.getAmount()
+        ));
+    }
 }
