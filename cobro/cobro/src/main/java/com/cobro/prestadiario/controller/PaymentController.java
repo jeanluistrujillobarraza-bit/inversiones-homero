@@ -23,7 +23,8 @@ public class PaymentController {
     }
 
     @PostMapping
-    public ResponseEntity<Payment> createPayment(@Valid @RequestBody PaymentDto paymentDto, @AuthenticationPrincipal UserDetailsImpl userDetails) {
+    public ResponseEntity<Payment> createPayment(@Valid @RequestBody PaymentDto paymentDto,
+            @AuthenticationPrincipal UserDetailsImpl userDetails) {
         return ResponseEntity.ok(paymentService.createPayment(paymentDto, userDetails.getId()));
     }
 
@@ -44,7 +45,8 @@ public class PaymentController {
 
     @PutMapping("/{id}")
     @PreAuthorize("hasAuthority('ROLE_ADMIN')")
-    public ResponseEntity<Payment> updatePayment(@PathVariable String id, @Valid @RequestBody PaymentDto paymentDto, @AuthenticationPrincipal UserDetailsImpl userDetails) {
+    public ResponseEntity<Payment> updatePayment(@PathVariable String id, @Valid @RequestBody PaymentDto paymentDto,
+            @AuthenticationPrincipal UserDetailsImpl userDetails) {
         return ResponseEntity.ok(paymentService.updatePayment(id, paymentDto, userDetails.getId()));
     }
 
@@ -55,7 +57,8 @@ public class PaymentController {
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAuthority('ROLE_ADMIN')")
-    public ResponseEntity<Void> deletePayment(@PathVariable String id, @AuthenticationPrincipal UserDetailsImpl userDetails) {
+    public ResponseEntity<Void> deletePayment(@PathVariable String id,
+            @AuthenticationPrincipal UserDetailsImpl userDetails) {
         paymentService.deletePayment(id, userDetails.getId());
         return ResponseEntity.noContent().build();
     }
