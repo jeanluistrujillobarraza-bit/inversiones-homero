@@ -1307,34 +1307,66 @@ async function loadPaymentsTabDetails() {
   }
 }
 
+function plusWorkingDays(date, days) {
+  const result = new Date(date);
+  let added = 0;
+  while (added < days) {
+    result.setDate(result.getDate() + 1);
+    if (result.getDay() !== 0) {
+      added++;
+    }
+  }
+  return result;
+}
+
+function getWorkingDaysBetween(start, end) {
+  const s = new Date(start);
+  s.setHours(0,0,0,0);
+  const e = new Date(end);
+  e.setHours(0,0,0,0);
+  
+  if (s.getTime() === e.getTime()) return 0;
+  
+  const isNegative = e < s;
+  const startDate = isNegative ? e : s;
+  const endDate = isNegative ? s : e;
+  
+  let count = 0;
+  const curr = new Date(startDate);
+  while (curr < endDate) {
+    curr.setDate(curr.getDate() + 1);
+    if (curr.getDay() !== 0) {
+      count++;
+    }
+  }
+  return isNegative ? -count : count;
+}
+
 function getNextPaymentDate(loan) {
   if (loan.status === 'PAGADO') return null;
   const nextInstallmentIndex = loan.installmentsPaid + 1;
   const start = new Date(loan.startDate + 'T12:00:00');
   
   if (loan.loanType === 'SEMANAL') {
-    start.setDate(start.getDate() + (nextInstallmentIndex * 7));
+    return plusWorkingDays(start, nextInstallmentIndex * 6);
   } else if (loan.loanType === 'QUINCENAL') {
-    start.setDate(start.getDate() + (nextInstallmentIndex * 15));
+    return plusWorkingDays(start, nextInstallmentIndex * 15);
   } else if (loan.loanType === 'MENSUAL') {
     start.setMonth(start.getMonth() + nextInstallmentIndex);
+    if (start.getDay() === 0) {
+      start.setDate(start.getDate() + 1);
+    }
+    return start;
   } else {
     // DIARIO
-    start.setDate(start.getDate() + nextInstallmentIndex);
+    return plusWorkingDays(start, nextInstallmentIndex);
   }
-  return start;
 }
 
 function getDaysRemaining(nextPaymentDate) {
   if (!nextPaymentDate) return 0;
   const today = new Date();
-  today.setHours(0,0,0,0);
-  const next = new Date(nextPaymentDate);
-  next.setHours(0,0,0,0);
-  
-  const diffTime = next - today;
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  return diffDays;
+  return getWorkingDaysBetween(today, nextPaymentDate);
 }
 
 function updatePaymentsTabCounters() {

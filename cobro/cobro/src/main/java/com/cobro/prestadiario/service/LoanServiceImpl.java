@@ -73,13 +73,16 @@ public class LoanServiceImpl implements LoanService {
 
         LocalDate endDate;
         if ("SEMANAL".equalsIgnoreCase(loanDto.getLoanType())) {
-            endDate = loanDto.getStartDate().plusWeeks(loanDto.getInstallmentsCount());
+            endDate = Loan.plusWorkingDays(loanDto.getStartDate(), loanDto.getInstallmentsCount() * 6L);
         } else if ("QUINCENAL".equalsIgnoreCase(loanDto.getLoanType())) {
-            endDate = loanDto.getStartDate().plusDays(loanDto.getInstallmentsCount() * 15L);
+            endDate = Loan.plusWorkingDays(loanDto.getStartDate(), loanDto.getInstallmentsCount() * 15L);
         } else if ("MENSUAL".equalsIgnoreCase(loanDto.getLoanType())) {
             endDate = loanDto.getStartDate().plusMonths(loanDto.getInstallmentsCount());
+            if (endDate.getDayOfWeek().getValue() == 7) {
+                endDate = endDate.plusDays(1);
+            }
         } else {
-            endDate = loanDto.getStartDate().plusDays(loanDto.getInstallmentsCount());
+            endDate = Loan.plusWorkingDays(loanDto.getStartDate(), loanDto.getInstallmentsCount());
         }
         loan.setEndDateEstimated(endDate);
 
@@ -112,13 +115,16 @@ public class LoanServiceImpl implements LoanService {
 
         LocalDate endDate;
         if ("SEMANAL".equalsIgnoreCase(loanDto.getLoanType())) {
-            endDate = loanDto.getStartDate().plusWeeks(loanDto.getInstallmentsCount());
+            endDate = Loan.plusWorkingDays(loanDto.getStartDate(), loanDto.getInstallmentsCount() * 6L);
         } else if ("QUINCENAL".equalsIgnoreCase(loanDto.getLoanType())) {
-            endDate = loanDto.getStartDate().plusDays(loanDto.getInstallmentsCount() * 15L);
+            endDate = Loan.plusWorkingDays(loanDto.getStartDate(), loanDto.getInstallmentsCount() * 15L);
         } else if ("MENSUAL".equalsIgnoreCase(loanDto.getLoanType())) {
             endDate = loanDto.getStartDate().plusMonths(loanDto.getInstallmentsCount());
+            if (endDate.getDayOfWeek().getValue() == 7) {
+                endDate = endDate.plusDays(1);
+            }
         } else {
-            endDate = loanDto.getStartDate().plusDays(loanDto.getInstallmentsCount());
+            endDate = Loan.plusWorkingDays(loanDto.getStartDate(), loanDto.getInstallmentsCount());
         }
         loan.setEndDateEstimated(endDate);
 
@@ -172,13 +178,16 @@ public class LoanServiceImpl implements LoanService {
 
         LocalDate endDate;
         if ("SEMANAL".equalsIgnoreCase(renewalDto.getLoanType())) {
-            endDate = renewalDto.getStartDate().plusWeeks(renewalDto.getInstallmentsCount());
+            endDate = Loan.plusWorkingDays(renewalDto.getStartDate(), renewalDto.getInstallmentsCount() * 6L);
         } else if ("QUINCENAL".equalsIgnoreCase(renewalDto.getLoanType())) {
-            endDate = renewalDto.getStartDate().plusDays(renewalDto.getInstallmentsCount() * 15L);
+            endDate = Loan.plusWorkingDays(renewalDto.getStartDate(), renewalDto.getInstallmentsCount() * 15L);
         } else if ("MENSUAL".equalsIgnoreCase(renewalDto.getLoanType())) {
             endDate = renewalDto.getStartDate().plusMonths(renewalDto.getInstallmentsCount());
+            if (endDate.getDayOfWeek().getValue() == 7) {
+                endDate = endDate.plusDays(1);
+            }
         } else {
-            endDate = renewalDto.getStartDate().plusDays(renewalDto.getInstallmentsCount());
+            endDate = Loan.plusWorkingDays(renewalDto.getStartDate(), renewalDto.getInstallmentsCount());
         }
         loan.setEndDateEstimated(endDate);
 

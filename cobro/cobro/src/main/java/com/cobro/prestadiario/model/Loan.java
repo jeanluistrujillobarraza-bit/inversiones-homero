@@ -37,6 +37,33 @@ public class Loan {
 
     public Loan() {}
 
+    public static long getWorkingDaysBetween(LocalDate start, LocalDate end) {
+        if (end.isBefore(start)) {
+            return 0;
+        }
+        long workingDays = 0;
+        LocalDate current = start.plusDays(1);
+        while (!current.isAfter(end)) {
+            if (current.getDayOfWeek().getValue() != 7) {
+                workingDays++;
+            }
+            current = current.plusDays(1);
+        }
+        return workingDays;
+    }
+
+    public static LocalDate plusWorkingDays(LocalDate date, long days) {
+        LocalDate result = date;
+        long added = 0;
+        while (added < days) {
+            result = result.plusDays(1);
+            if (result.getDayOfWeek().getValue() != 7) {
+                added++;
+            }
+        }
+        return result;
+    }
+
     public void recalculateState(List<Payment> payments) {
         double totalPaid = payments.stream().mapToDouble(Payment::getAmount).sum();
         double activePaid = totalPaid - (this.rolledOverPayments != null ? this.rolledOverPayments : 0.0);
@@ -63,13 +90,13 @@ public class Loan {
         if (today.isAfter(this.getStartDate()) && !"PAGADO".equalsIgnoreCase(this.getStatus()) && balance > 0.0) {
             long elapsed;
             if ("SEMANAL".equalsIgnoreCase(this.getLoanType())) {
-                elapsed = ChronoUnit.WEEKS.between(this.getStartDate(), today);
+                elapsed = getWorkingDaysBetween(this.getStartDate(), today) / 6;
             } else if ("QUINCENAL".equalsIgnoreCase(this.getLoanType())) {
-                elapsed = ChronoUnit.DAYS.between(this.getStartDate(), today) / 15;
+                elapsed = getWorkingDaysBetween(this.getStartDate(), today) / 15;
             } else if ("MENSUAL".equalsIgnoreCase(this.getLoanType())) {
                 elapsed = ChronoUnit.MONTHS.between(this.getStartDate(), today);
             } else {
-                elapsed = ChronoUnit.DAYS.between(this.getStartDate(), today);
+                elapsed = getWorkingDaysBetween(this.getStartDate(), today);
             }
             int expectedInstallments = (int) Math.min(elapsed, this.getInstallmentsCount());
             int late = expectedInstallments - installmentsPaidVal;
