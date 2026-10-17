@@ -4,4 +4,5 @@ import com.cobro.prestadiario.model.DashboardDto;
 
 public interface DashboardService {
     DashboardDto getDashboardStats(String currentUserId, String role);
+    void resetDashboard(String username);
 }

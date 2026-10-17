@@ -6,11 +6,14 @@ import com.cobro.prestadiario.model.Loan;
 import com.cobro.prestadiario.model.Payment;
 import com.cobro.prestadiario.model.Expense;
 import com.cobro.prestadiario.model.CashClosing;
+import com.cobro.prestadiario.model.AuditLog;
 import com.cobro.prestadiario.repository.ClientRepository;
 import com.cobro.prestadiario.repository.LoanRepository;
 import com.cobro.prestadiario.repository.PaymentRepository;
 import com.cobro.prestadiario.repository.ExpenseRepository;
 import com.cobro.prestadiario.repository.CashClosingRepository;
+import com.cobro.prestadiario.repository.CorrectionRequestRepository;
+import com.cobro.prestadiario.repository.AuditLogRepository;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
@@ -27,17 +30,23 @@ public class DashboardServiceImpl implements DashboardService {
     private final ClientRepository clientRepository;
     private final ExpenseRepository expenseRepository;
     private final CashClosingRepository cashClosingRepository;
+    private final CorrectionRequestRepository correctionRequestRepository;
+    private final AuditLogRepository auditLogRepository;
 
     public DashboardServiceImpl(LoanRepository loanRepository, 
                                 PaymentRepository paymentRepository, 
                                 ClientRepository clientRepository,
                                 ExpenseRepository expenseRepository,
-                                CashClosingRepository cashClosingRepository) {
+                                CashClosingRepository cashClosingRepository,
+                                CorrectionRequestRepository correctionRequestRepository,
+                                AuditLogRepository auditLogRepository) {
         this.loanRepository = loanRepository;
         this.paymentRepository = paymentRepository;
         this.clientRepository = clientRepository;
         this.expenseRepository = expenseRepository;
         this.cashClosingRepository = cashClosingRepository;
+        this.correctionRequestRepository = correctionRequestRepository;
+        this.auditLogRepository = auditLogRepository;
     }
 
     private void recalculateActiveLoans(List<Loan> loans) {
@@ -295,5 +304,22 @@ public class DashboardServiceImpl implements DashboardService {
             list.add(map);
         }
         return list;
+    }
+
+    @Override
+    public void resetDashboard(String username) {
+        // Reiniciar datos operacionales para que el dashboard y ciclo queden en 0
+        loanRepository.deleteAll();
+        paymentRepository.deleteAll();
+        expenseRepository.deleteAll();
+        cashClosingRepository.deleteAll();
+        correctionRequestRepository.deleteAll();
+
+        // Registrar auditoría del reinicio de ciclo
+        auditLogRepository.save(new AuditLog(
+            username,
+            "LIMPIEZA_DASHBOARD_NUEVO_CICLO",
+            "Dashboard y ciclo reiniciados a 0. Préstamos, pagos, gastos y cierres restablecidos. Clientes y usuarios conservados."
+        ));
     }
 }

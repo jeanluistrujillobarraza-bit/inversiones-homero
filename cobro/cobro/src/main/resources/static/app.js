@@ -351,8 +351,8 @@ function renderDonutChart(chartData) {
   const nequi = chartData?.["Nequi"] || 0;
   const total = cash + nequi;
   
-  const cashPct = total > 0 ? (cash / total) * 100 : 50;
-  const nequiPct = total > 0 ? (nequi / total) * 100 : 50;
+  const cashPct = total > 0 ? (cash / total) * 100 : 0;
+  const nequiPct = total > 0 ? (nequi / total) * 100 : 0;
 
   document.getElementById('donut-cash-label').innerText = `${formatCurrency(cash)} (${cashPct.toFixed(1)}%)`;
   document.getElementById('donut-nequi-label').innerText = `${formatCurrency(nequi)} (${nequiPct.toFixed(1)}%)`;
@@ -361,13 +361,15 @@ function renderDonutChart(chartData) {
   const radius = 60;
   const strokeWidth = 16;
   const circ = 2 * Math.PI * radius;
-  const cashOffset = circ - (cashPct / 100) * circ;
+  const cashOffset = total > 0 ? circ - (cashPct / 100) * circ : circ;
 
   container.innerHTML = `
     <svg width="${size}" height="${size}" class="transform -rotate-90">
       <circle cx="${size / 2}" cy="${size / 2}" r="${radius}" fill="transparent" stroke="#f1f5f9" stroke-width="${strokeWidth}" />
-      <circle cx="${size / 2}" cy="${size / 2}" r="${radius}" fill="transparent" stroke="#6366f1" stroke-width="${strokeWidth}" stroke-dasharray="${circ}" stroke-dashoffset="0" />
-      <circle cx="${size / 2}" cy="${size / 2}" r="${radius}" fill="transparent" stroke="#10b981" stroke-width="${strokeWidth}" stroke-dasharray="${circ}" stroke-dashoffset="${cashOffset}" />
+      ${total > 0 ? `
+        <circle cx="${size / 2}" cy="${size / 2}" r="${radius}" fill="transparent" stroke="#6366f1" stroke-width="${strokeWidth}" stroke-dasharray="${circ}" stroke-dashoffset="0" />
+        <circle cx="${size / 2}" cy="${size / 2}" r="${radius}" fill="transparent" stroke="#10b981" stroke-width="${strokeWidth}" stroke-dasharray="${circ}" stroke-dashoffset="${cashOffset}" />
+      ` : ''}
     </svg>
     <div class="absolute flex flex-col items-center justify-center">
       <span class="text-[9px] font-semibold text-slate-400 uppercase tracking-wider">Total</span>
@@ -3754,5 +3756,91 @@ async function handleRenewLoanSubmit(e) {
       submitBtn.disabled = false;
       submitBtn.innerText = 'Confirmar Renovación';
     }
+  }
+}
+
+// ----------------------------------------------------
+// RESET DASHBOARD / NUEVO CICLO LOGIC
+// ----------------------------------------------------
+function openResetDashboardModal() {
+  const modal = document.getElementById('modal-reset-dashboard');
+  if (!modal) return;
+  const input = document.getElementById('reset-dashboard-confirm-input');
+  if (input) input.value = '';
+  const errorDiv = document.getElementById('reset-dashboard-error');
+  if (errorDiv) {
+    errorDiv.innerText = '';
+    errorDiv.classList.add('hidden');
+  }
+  const btnText = document.getElementById('btn-reset-dashboard-text');
+  if (btnText) btnText.innerText = 'Confirmar y Reiniciar a 0';
+  const submitBtn = document.getElementById('btn-submit-reset-dashboard');
+  if (submitBtn) submitBtn.disabled = false;
+
+  modal.classList.remove('hidden');
+  if (window.lucide) lucide.createIcons();
+  if (input) setTimeout(() => input.focus(), 100);
+}
+
+function closeResetDashboardModal() {
+  const modal = document.getElementById('modal-reset-dashboard');
+  if (modal) modal.classList.add('hidden');
+}
+
+async function handleResetDashboardSubmit(event) {
+  event.preventDefault();
+  const input = document.getElementById('reset-dashboard-confirm-input');
+  const errorDiv = document.getElementById('reset-dashboard-error');
+  const submitBtn = document.getElementById('btn-submit-reset-dashboard');
+  const btnText = document.getElementById('btn-reset-dashboard-text');
+
+  if (!input || input.value.trim().toUpperCase() !== 'RENOVAR') {
+    if (errorDiv) {
+      errorDiv.innerText = 'Debes escribir exactamente la palabra RENOVAR para confirmar.';
+      errorDiv.classList.remove('hidden');
+    }
+    return;
+  }
+
+  try {
+    if (submitBtn) submitBtn.disabled = true;
+    if (btnText) btnText.innerText = 'Reiniciando a $0...';
+    if (errorDiv) errorDiv.classList.add('hidden');
+
+    const res = await fetch(`${API_BASE}/dashboard/reset`, {
+      method: 'POST',
+      headers: getHeaders()
+    });
+
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      throw new Error(data.message || 'Error al reiniciar el dashboard y ciclo.');
+    }
+
+    closeResetDashboardModal();
+    alert('¡Dashboard y ciclo reiniciados con éxito! Todos los valores han quedado en $0 para el nuevo ciclo de préstamos.');
+
+    // Recargar todas las vistas relevantes inmediatamente
+    await loadDashboardStats();
+    if (typeof loadLoansTabDetails === 'function' && currentTab === 'loans') {
+      loadLoansTabDetails();
+    }
+    if (typeof loadExpensesList === 'function' && currentTab === 'expenses') {
+      loadExpensesList();
+    }
+    if (typeof loadCashClosingDetails === 'function' && currentTab === 'cash-closing') {
+      loadCashClosingDetails();
+    }
+  } catch (error) {
+    if (errorDiv) {
+      errorDiv.innerText = error.message;
+      errorDiv.classList.remove('hidden');
+    } else {
+      alert(error.message);
+    }
+  } finally {
+    if (submitBtn) submitBtn.disabled = false;
+    if (btnText) btnText.innerText = 'Confirmar y Reiniciar a 0';
   }
 }
